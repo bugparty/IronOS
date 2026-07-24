@@ -24,22 +24,22 @@ Open `http://127.0.0.1:18080/web/` and select idle, solder, boost, or sleep.
 It is a fork of following projects:
 * [Ralim - IronOS](https://github.com/Ralim/IronOS)
 * [PanKleszcz - IronOS](https://github.com/PanKleszcz/IronOS)
+* [ok2cm - IronOS](https://github.com/ok2cm/IronOS)
 
 ## Key Features
 
-- [ARDC](https://nl.mathworks.com/help/slcontrol/ug/active-disturbance-rejection-control.html) temperature control to provide faster response than classical PID and zero steady state error (the original PID implementation has limited integration which fails to keep the temperature under heavy loads).
-- Full screen LCD support (limited to black/white).
+- Aggresive PID controller , better heat power than stock firmware.
+- Full screen LCD support (Main Screen is colored now).
 - Accelerometer support.
 - Status LED support.
 - Buzzer support; however, disabled in default releases because it is too annoying.
+- Stock Boot logo added.
 
 ## Missing features & limitations
 
 - Tip resistance detection and short circuit protection.
 - PD required voltage selection.
-- Boot logo support.
-- Color LCD; however, there is not enough SRAM to easily implement color mode to support effects like scrolling.
-- Translations not tested (EN only).
+- Translations in CJK won't works, others in theory is fine, but I don't recommend.
 
 ## Supported Hardware
 
