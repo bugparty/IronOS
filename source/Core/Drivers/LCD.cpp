@@ -17,14 +17,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include "LCD_Port.hpp"
+#include <math.h>
 
 // rendering to the buffer
 uint8_t *LCD::stripPointers[LCD_HEIGHT / 8]; // Pointers to the strips to allow for buffer having extra content
 
-alignas(uint32_t) uint8_t LCD::screenBuffer[LCD_SCREEN_BUF_SIZE]; // The data buffer
+alignas(uint32_t) uint8_t LCD::screenBuffer[LCD_SCREEN_BUF_SIZE_2BPP]; // The data buffer (shared mono/colour, see LCD.hpp)
 alignas(uint32_t) uint8_t LCD::secondFrameBuffer[LCD_SCREEN_BUF_SIZE];
 uint32_t LCD::displayChecksum;
+bool     LCD::colorModeActive = false;
 uint8_t  LCD::loopCounter;
+
+// True (non-inverted) RGB565 colours; refreshColor() inverts each one on the way out because the
+// panel runs with INVON. Index 0 stays background so clearScreenColor()'s memset(0) blanks to it.
+const uint16_t LCD::palette2bpp[4] = {
+    0x0862, // background (navy)
+    0xF77C, // ink (off-white)
+    0xFBC5, // ember (heating)
+    0x45B8, // cool (idle/sleep)
+};
+const uint16_t *LCD::activePalette2bpp = LCD::palette2bpp;
 
 // ST7735 Commands
 #define ST7735_NOP     0x00
@@ -302,7 +314,10 @@ void LCD::setInverse(bool inverse) {
   FRToSSPI::sendCmdChain(&cmdInvSet, 1);
 }
 
-void LCD::flushSecondBuffer(void) { memcpy(screenBuffer, secondFrameBuffer, sizeof(screenBuffer)); }
+// Mono-only: secondFrameBuffer (scroll-transition backing) is always 1bpp/LCD_SCREEN_BUF_SIZE,
+// even though screenBuffer itself is now sized for the wider 2bpp colour mode -- must NOT use
+// sizeof(screenBuffer) here, that would over-read secondFrameBuffer.
+void LCD::flushSecondBuffer(void) { memcpy(screenBuffer, secondFrameBuffer, LCD_SCREEN_BUF_SIZE); }
 
 // Draw an area, but y must be aligned on 0/8 offset
 void LCD::drawArea(int16_t x, int8_t y, uint8_t width, uint8_t height, const uint8_t *ptr) {
@@ -394,6 +409,160 @@ void LCD::fillArea(int16_t x, int8_t y, uint8_t wide, uint8_t height, const uint
     }
     height -= 8;
     rowsDrawn++;
+  }
+}
+
+// ---- 2bpp colour screen support --------------------------------------------------------------
+// This variant is only ever built for the 160x80 colour panel, so the SMALL/LARGE glyph cell
+// sizes are fixed constants here, matching Display.hpp's LCD_160x80 branch.
+namespace {
+constexpr uint8_t kSmallW = 12, kSmallH = 16;
+constexpr uint8_t kLargeW = 24, kLargeH = 32;
+} // namespace
+
+void LCD::refreshColor() {
+  // This panel scans COLUMN-MAJOR: within any drawing window the address auto-increments down a
+  // column (y) first, then across (x) -- see the mono sendPixels() path, where each source byte
+  // is one x-column's 8 vertical pixels. So we must emit one full column (y=0..H-1) at a time.
+  // It also runs with INVON (hardware inversion, see the init sequence), so the boot logo stores
+  // ~colour on the wire; we do the same, inverting each palette entry as it is sent.
+  static uint8_t colRGB[LCD_HEIGHT * 2]; // one column of expanded RGB565, reused every column
+  setDrawingWindow(0, 0, LCD_WIDTH, LCD_HEIGHT);
+  for (uint16_t x = 0; x < LCD_WIDTH; x++) {
+    for (uint16_t y = 0; y < LCD_HEIGHT; y++) {
+      uint8_t  packed = screenBuffer[y * (LCD_WIDTH / 4) + (x / 4)];
+      uint8_t  index  = (packed >> ((x % 4) * 2)) & 0x3;
+      uint16_t rgb    = (uint16_t)~activePalette2bpp[index]; // INVON: send the inverse of the true colour
+      colRGB[y * 2]     = (uint8_t)(rgb >> 8);
+      colRGB[y * 2 + 1] = (uint8_t)(rgb & 0xFF);
+    }
+    SPI_CLASS::fastSend(colRGB, sizeof(colRGB));
+  }
+}
+
+void LCD::fillRect2bpp(uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, uint8_t colorIndex) {
+  for (uint8_t y = y0; y < y0 + h && y < LCD_HEIGHT; y++) {
+    for (uint8_t x = x0; x < x0 + w && x < LCD_WIDTH; x++) {
+      setPixel2bpp(x, y, colorIndex);
+    }
+  }
+}
+
+void LCD::plotRadialSegment(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex) {
+  const float c = cosf(angle), s = sinf(angle);
+  for (uint8_t r = rInner; r <= rOuter; r++) {
+    int16_t x = (int16_t)(cx + c * r);
+    int16_t y = (int16_t)(cy + s * r);
+    if (x >= 0 && y >= 0 && x < LCD_WIDTH && y < LCD_HEIGHT) {
+      setPixel2bpp((uint8_t)x, (uint8_t)y, colorIndex);
+    }
+  }
+}
+
+void LCD::drawRing2bpp(uint8_t cx, uint8_t cy, uint8_t r, uint8_t thickness, uint8_t colorIndex, float startAngle, float endAngle) {
+  const uint8_t rInner = (thickness / 2 >= r) ? 0 : r - thickness / 2;
+  const uint8_t rOuter = r + thickness / 2;
+  const uint16_t innerSquared = rInner * rInner;
+  const uint16_t outerSquared = rOuter * rOuter;
+  constexpr float kTwoPi = 6.28318531f;
+
+  // Rasterise the annular sector directly. Sampling radial spokes leaves holes
+  // after float-to-integer truncation; testing every pixel guarantees a solid
+  // ring on the actual 160x80 framebuffer.
+  for (int16_t y = (int16_t)cy - rOuter; y <= (int16_t)cy + rOuter; y++) {
+    for (int16_t x = (int16_t)cx - rOuter; x <= (int16_t)cx + rOuter; x++) {
+      const int16_t dx = x - cx, dy = y - cy;
+      const uint16_t distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < innerSquared || distanceSquared > outerSquared) {
+        continue;
+      }
+      float angle = atan2f((float)dy, (float)dx);
+      if (angle < 0.0f) {
+        angle += kTwoPi;
+      }
+      if (angle < startAngle) {
+        angle += kTwoPi;
+      }
+      if (angle >= startAngle && angle <= endAngle && x >= 0 && y >= 0 && x < LCD_WIDTH && y < LCD_HEIGHT) {
+        setPixel2bpp((uint8_t)x, (uint8_t)y, colorIndex);
+      }
+    }
+  }
+}
+
+void LCD::drawTick2bpp(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex) {
+  plotRadialSegment(cx, cy, angle, rInner, rOuter, colorIndex);
+}
+
+void LCD::drawGlyph2bpp(uint16_t charCode, FontStyle fontStyle, uint8_t x, uint8_t y, uint8_t colorIndex) {
+  const uint8_t *currentFont;
+  uint8_t        fontWidth, fontHeight;
+  uint16_t       index;
+
+  if (fontStyle == FontStyle::EXTRAS) {
+    currentFont = ExtraFontChars;
+    index       = charCode;
+    fontWidth   = kSmallW;
+    fontHeight  = kSmallH;
+  } else {
+    if (charCode <= 0x01) {
+      return;
+    }
+    const bool small = (fontStyle == FontStyle::SMALL);
+    fontWidth   = small ? kSmallW : kLargeW;
+    fontHeight  = small ? kSmallH : kLargeH;
+    currentFont = small ? FontSectionInfo.font06_start_ptr : FontSectionInfo.font12_start_ptr;
+    index       = charCode - 2;
+  }
+
+  const uint8_t *charPointer = currentFont + ((fontWidth * (fontHeight / 8)) * index);
+  for (uint8_t strip = 0; strip < fontHeight / 8; strip++) {
+    for (uint8_t col = 0; col < fontWidth; col++) {
+      const uint8_t bits = charPointer[strip * fontWidth + col];
+      if (bits == 0) {
+        continue;
+      }
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        if (bits & (1 << bit)) {
+          setPixel2bpp(x + col, y + strip * 8 + bit, colorIndex);
+        }
+      }
+    }
+  }
+}
+
+void LCD::drawTextColor(const char *str, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex, uint8_t maxChars) {
+  const uint8_t *next      = reinterpret_cast<const uint8_t *>(str);
+  const uint8_t  fontWidth = (fontStyle == FontStyle::SMALL) ? kSmallW : (fontStyle == FontStyle::LARGE ? kLargeW : kSmallW);
+  while (*next && maxChars--) {
+    uint16_t index;
+    if (*next <= 0xF0) {
+      index = *next;
+      next++;
+    } else {
+      if (!next[1]) {
+        return;
+      }
+      index = (next[0] - 0xF0) * 0xFF - 15 + next[1];
+      next += 2;
+    }
+    drawGlyph2bpp(index, fontStyle, x, y, colorIndex);
+    x += fontWidth;
+  }
+}
+
+void LCD::drawBitmap2bpp(const uint8_t *bitmap, uint8_t width, uint8_t height, uint8_t x, uint8_t y, uint8_t colorIndex) {
+  const uint8_t strips = (height + 7) / 8;
+  for (uint8_t strip = 0; strip < strips; strip++) {
+    for (uint8_t gx = 0; gx < width; gx++) {
+      const uint8_t bits = bitmap[strip * width + gx];
+      for (uint8_t gy = 0; gy < 8; gy++) {
+        const uint8_t py = strip * 8 + gy;
+        if (py < height && (bits & (1u << gy))) {
+          setPixel2bpp(x + gx, y + py, colorIndex);
+        }
+      }
+    }
   }
 }
 

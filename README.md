@@ -5,6 +5,22 @@
 
 This repository provides [FNIRSI HS-02](https://www.fnirsi.com/products/hs-02) iron support.
 
+## HS-02 Color UI
+
+The HS-02 home, soldering, boost, and sleep pages use a four-colour interface.
+
+![HS-02 soldering UI preview](docs/assets/hs02-wash-ui.png)
+
+The preview is rendered from the production drawing code through WebAssembly:
+
+```bash
+source /path/to/emsdk/emsdk_env.sh
+tools/hs02-wasm-preview/build.sh
+python3 -m http.server 18080 --directory tools/hs02-wasm-preview
+```
+
+Open `http://127.0.0.1:18080/web/` and select idle, solder, boost, or sleep.
+
 It is a fork of following projects:
 * [Ralim - IronOS](https://github.com/Ralim/IronOS)
 * [PanKleszcz - IronOS](https://github.com/PanKleszcz/IronOS)

@@ -23,6 +23,11 @@ void ui_draw_soldering_basic_status(bool boostModeOn);
 void ui_draw_soldering_detailed_sleep(TemperatureType_t tipTemp);
 void ui_draw_soldering_basic_sleep(TemperatureType_t tipTemp);
 void ui_draw_soldering_profile_advanced(TemperatureType_t tipTemp, TemperatureType_t profileCurrentTargetTemp, uint32_t phaseElapsedSeconds, uint32_t phase, const uint32_t phaseTimeGoal);
+// Colour gauge screen (HS-02 color_160x80 only) -- supersedes the detailed/basic homescreen and
+// soldering variants above plus the sleep screens, with one consistent layout for all 4 states.
+void ui_draw_home_gauge_idle(TemperatureType_t tipTemp);
+void ui_draw_home_gauge_soldering(bool boostModeOn);
+void ui_draw_home_gauge_sleep(TemperatureType_t tipTemp);
 
 // Temp change
 void ui_draw_temperature_change(void);

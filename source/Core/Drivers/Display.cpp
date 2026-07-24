@@ -342,6 +342,21 @@ void Display::printNumber(uint16_t number, uint8_t places, FontStyle fontStyle, 
   print(buffer, fontStyle);
 }
 
+#if defined(LCD_160x80)
+// Same digit-buffer convention as printNumber() (charCode = 2 + digit), but blits at an explicit
+// (x,y) with a chosen ink colour instead of the shared cursor / 1bpp path. Unsigned only, same as
+// printNumber -- the gauge screen only ever displays non-negative temperatures/wattage.
+void Display::printNumberColor(uint16_t number, uint8_t places, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex) {
+  char buffer[7] = {0};
+  for (uint8_t i = places; i > 0; i--) {
+    buffer[i - 1] = 2 + number % 10;
+    number /= 10;
+  }
+  stripLeaderZeros(buffer, places);
+  printColor(buffer, x, y, fontStyle, colorIndex);
+}
+#endif
+
 void Display::debugNumber(int32_t val, FontStyle fontStyle) {
   if (abs(val) > 99999) {
     Display::print(LargeSymbolSpace, fontStyle); // out of bounds

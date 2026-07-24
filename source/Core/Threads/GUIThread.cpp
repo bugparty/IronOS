@@ -41,8 +41,36 @@ OperatingMode currentOperatingMode = OperatingMode::InitialisationDone; // Curre
 guiContext    context;                                                  // Context passed to functions to aid in state during render passes
 
 OperatingMode handle_post_init_state();
+
+#if defined(LCD_160x80)
+// The HS-02 colour home/soldering/sleep screens share one physical LCD buffer with the mono menu
+// system (see LCD.hpp) rather than paying for two buffers -- pick the right interpretation for
+// whichever mode is about to draw this frame, once, in this single dispatch point.
+static bool isColorScreenMode(OperatingMode mode) {
+  switch (mode) {
+  case OperatingMode::HomeScreen:
+  case OperatingMode::Soldering:
+  case OperatingMode::Sleeping:
+  case OperatingMode::Hibernating:
+    return true;
+  default:
+    return false;
+  }
+}
+#endif
+
 OperatingMode guiHandleDraw(void) {
+#if defined(LCD_160x80)
+  const bool colorScreen = isColorScreenMode(currentOperatingMode);
+  Display::setColorMode(colorScreen);
+  if (colorScreen) {
+    Display::clearScreenColor();
+  } else {
+    Display::clearScreen();
+  }
+#else
   Display::clearScreen(); // Clear ready for render pass
+#endif
   // Read button state
   ButtonState buttons = getButtonState();
   // Enforce screen on if buttons pressed, movement, hot tip etc
@@ -157,6 +185,15 @@ void guiRenderLoop(void) {
         newMode = OperatingMode::HomeScreen;
       }
     }
+#if defined(LCD_160x80)
+    // Menus use the legacy 1bpp buffer while home/soldering/sleep use the
+    // 2bpp colour interpretation. The transition routines only understand
+    // two 1bpp framebuffers, so never animate across that representation
+    // boundary (for example SettingsMenu -> HomeScreen).
+    if (isColorScreenMode(currentOperatingMode) != isColorScreenMode(newMode)) {
+      context.transitionMode = TransitionAnimation::None;
+    }
+#endif
     memset(&context.scratch_state, 0, sizeof(context.scratch_state));
     currentOperatingMode = newMode;
   }

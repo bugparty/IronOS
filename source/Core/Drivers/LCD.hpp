@@ -22,7 +22,11 @@
 #define LCD_WIDTH           160
 #define LCD_HEIGHT          80
 
-#define LCD_SCREEN_BUF_SIZE ((LCD_WIDTH * LCD_HEIGHT)/8)
+#define LCD_SCREEN_BUF_SIZE      ((LCD_WIDTH * LCD_HEIGHT)/8)     // 1bpp size, used by the existing mono screens
+#define LCD_SCREEN_BUF_SIZE_2BPP ((LCD_WIDTH * LCD_HEIGHT * 2)/8) // 2bpp size; screenBuffer is sized for this so
+                                                                   // the mono and colour screens can share one buffer,
+                                                                   // each reading/writing it their own way -- the two
+                                                                   // are never live on screen at the same time.
 
 #define ST7735_XOFFSET 1
 #define ST7735_YOFFSET 26
@@ -33,6 +37,12 @@ public:
   static void initialize(); // Startup the I2C coms (brings screen out of reset etc)
   // Draw the buffer out to the LCD if any content has changed.
   static void refresh(const bool force = false) {
+    if (colorModeActive) {
+      if (force || checkDisplayBufferChecksum()) {
+        refreshColor();
+      }
+      return;
+    }
 
     if (force || checkDisplayBufferChecksum()) {
       const int len = (LCD_WIDTH * (LCD_HEIGHT / 8));
@@ -44,6 +54,35 @@ public:
       }
     }
   }
+
+  // Selects which half of refresh()/the drawing primitives below is active. The 1bpp mono
+  // screens (menus, debug, etc.) and the 2bpp colour screens (home/soldering) share the same
+  // physical screenBuffer, interpreted differently -- switch modes when crossing between them.
+  static void setColorMode(bool active) { colorModeActive = active; }
+  static bool isColorMode() { return colorModeActive; }
+  // A colour page owns its four RGB565 entries. Index 0 must remain that page's
+  // background because clearScreenColor() represents it with an all-zero buffer.
+  static void setColorPalette(const uint16_t *palette) { activePalette2bpp = palette ? palette : palette2bpp; }
+
+  // Clears the buffer to palette index 0 (background). Index 0 is chosen so this is a plain
+  // memset, same trick as the existing mono clearScreen().
+  static void clearScreenColor() { memset(screenBuffer, 0, LCD_SCREEN_BUF_SIZE_2BPP); }
+
+  // 2bpp primitives for the colour home/soldering screen. Coordinates are real device pixels.
+  static void fillRect2bpp(uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, uint8_t colorIndex);
+  // Draws an arc of the ring centred at (cx,cy), radius r, thickness px wide, from startAngle to
+  // endAngle (radians, 0 = +x axis, increasing clockwise to match screen y-down coordinates).
+  static void drawRing2bpp(uint8_t cx, uint8_t cy, uint8_t r, uint8_t thickness, uint8_t colorIndex, float startAngle, float endAngle);
+  // Draws a short radial tick mark (e.g. the gauge's target marker) at the given angle.
+  static void drawTick2bpp(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex);
+  // Blits one already-resolved glyph/symbol code (same convention as Display::drawChar) into the
+  // 2bpp buffer with a caller-chosen ink colour; unset pixels are left untouched (transparent).
+  static void drawGlyph2bpp(uint16_t charCode, FontStyle fontStyle, uint8_t x, uint8_t y, uint8_t colorIndex);
+  // Blits a whole already-encoded string (same byte convention as Display::print) left-to-right.
+  static void drawTextColor(const char *str, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex, uint8_t maxChars = 255);
+  // Blits a transparent 1bpp bitmap encoded as column-major vertical strips.
+  // Page-specific colour UIs own their glyph data; this is only the generic blitter.
+  static void drawBitmap2bpp(const uint8_t *bitmap, uint8_t width, uint8_t height, uint8_t x, uint8_t y, uint8_t colorIndex);
 
   static void setDisplayState(bool state) {
     // TODO: implement
@@ -92,11 +131,32 @@ private:
   static void         drawChar(uint16_t charCode, FontStyle fontStyle, const uint8_t soft_x_limit); // Draw a character to the current cursor location
   static void         setDrawingWindow(uint8_t x, uint8_t y, uint8_t w, uint8_t h);
 
+  static void    setPixel2bpp(uint8_t x, uint8_t y, uint8_t colorIndex) {
+    if (x >= LCD_WIDTH || y >= LCD_HEIGHT) {
+      return;
+    }
+    uint16_t byteIdx = (uint16_t)y * (LCD_WIDTH / 4) + (x / 4);
+    uint8_t  shift   = (x % 4) * 2;
+    screenBuffer[byteIdx] = (screenBuffer[byteIdx] & ~(0x3 << shift)) | ((colorIndex & 0x3) << shift);
+  }
+  static void refreshColor();
+  // Plots one radial segment at `angle`, covering radii [rInner, rOuter]. Shared by drawRing2bpp
+  // and drawTick2bpp.
+  static void plotRadialSegment(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex);
+
   static uint8_t     *stripPointers[LCD_HEIGHT / 8]; // Pointers to the strips to allow for buffer having extra content
   static uint32_t     displayChecksum;
-  static uint8_t      screenBuffer[LCD_SCREEN_BUF_SIZE]; // The data buffer
-  static uint8_t      secondFrameBuffer[LCD_SCREEN_BUF_SIZE];
+  static bool         colorModeActive;
+  static uint8_t      screenBuffer[LCD_SCREEN_BUF_SIZE_2BPP]; // Shared: first LCD_SCREEN_BUF_SIZE bytes hold the
+                                                               // mono screens' 1bpp content; the full buffer holds
+                                                               // the colour screens' 2bpp content. Never both at once.
+  static uint8_t      secondFrameBuffer[LCD_SCREEN_BUF_SIZE]; // Mono-only: scroll-transition backing buffer.
   static uint8_t      loopCounter;
+
+  // 4-colour palette for the 2bpp colour screens, in device RGB565 (big-endian on the wire).
+  // Index 0 must be the background colour (clearScreenColor() relies on an all-zero buffer).
+  static const uint16_t  palette2bpp[4];
+  static const uint16_t *activePalette2bpp;
 };
 
 #endif // LCD_160x80

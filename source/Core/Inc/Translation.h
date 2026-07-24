@@ -47,6 +47,8 @@ extern const char *SmallSymbolPDDebug;
 extern const char *SmallSymbolTipCal;
 extern const char *SmallSymbolTipCalInUse;
 extern const char *SmallSymbolTipCalUnused;
+extern const char *SmallSymbolSetPoint;
+extern const char *SmallSymbolBoostActive;
 extern const char *SmallSymbolState;
 extern const char *SmallSymbolNoVBus;
 extern const char *SmallSymbolVBus;

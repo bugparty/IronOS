@@ -49,7 +49,6 @@ OperatingMode handleSolderingButtons(const ButtonState buttons, guiContext *cxt)
     return OperatingMode::Soldering;
   }
 
-  bool detailedView = getSettingValue(SettingsOptions::DetailedIDLE) && getSettingValue(SettingsOptions::DetailedSoldering);
   // otherwise we are unlocked
   switch (buttons) {
   case BUTTON_NONE:
@@ -61,7 +60,17 @@ OperatingMode handleSolderingButtons(const ButtonState buttons, guiContext *cxt)
   case BUTTON_BOTH:
   /*Fall through*/
   case BUTTON_B_LONG:
-    cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+#if defined(LCD_160x80)
+    // The colour gauge screen and the mono menu system share one physical LCD buffer (see
+    // LCD.hpp) and can't slide-transition between each other; HomeScreen stays in the gauge
+    // family too, so this is always a hard cut here.
+    cxt->transitionMode = TransitionAnimation::None;
+#else
+    {
+      bool detailedView   = getSettingValue(SettingsOptions::DetailedIDLE) && getSettingValue(SettingsOptions::DetailedSoldering);
+      cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+    }
+#endif
     return OperatingMode::HomeScreen;
   case BUTTON_F_LONG:
     // if boost mode is enabled turn it on
@@ -72,7 +81,12 @@ OperatingMode handleSolderingButtons(const ButtonState buttons, guiContext *cxt)
   case BUTTON_OK_SHORT: // Dedicated OK button opens temperature adjust
   case BUTTON_F_SHORT:
   case BUTTON_B_SHORT:
+#if defined(LCD_160x80)
+    // TemperatureAdjust is a mono screen; hard cut, see the note above.
+    cxt->transitionMode = TransitionAnimation::None;
+#else
     cxt->transitionMode = TransitionAnimation::Left;
+#endif
     return OperatingMode::TemperatureAdjust;
   case BUTTON_BOTH_LONG:
     if (getSettingValue(SettingsOptions::LockingMode)) {
@@ -143,17 +157,27 @@ OperatingMode gui_solderingMode(const ButtonState buttons, guiContext *cxt) {
   }
 
   // Draw in the screen details
+#if defined(LCD_160x80)
+  ui_draw_home_gauge_soldering(cxt->scratch_state.state2);
+#else
   if (getSettingValue(SettingsOptions::DetailedSoldering)) {
     ui_draw_soldering_power_status(cxt->scratch_state.state2);
   } else {
     ui_draw_soldering_basic_status(cxt->scratch_state.state2);
   }
+#endif
 
+#if !defined(LCD_160x80)
   bool detailedView = getSettingValue(SettingsOptions::DetailedIDLE) && getSettingValue(SettingsOptions::DetailedSoldering);
+#endif
   // Check if we should bail due to undervoltage for example
   if (checkExitSoldering()) {
     setBuzzer(false);
+#if defined(LCD_160x80)
+    cxt->transitionMode = TransitionAnimation::None; // Staying within the colour gauge screen family.
+#else
     cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+#endif
     return OperatingMode::HomeScreen;
   }
 #ifdef NO_SLEEP_MODE
@@ -161,7 +185,11 @@ OperatingMode gui_solderingMode(const ButtonState buttons, guiContext *cxt) {
   if (shouldShutdown()) {
     // shutdown
     currentTempTargetDegC = 0;
-    cxt->transitionMode   = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+#if defined(LCD_160x80)
+    cxt->transitionMode = TransitionAnimation::None;
+#else
+    cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+#endif
     return OperatingMode::HomeScreen;
   }
 #endif
@@ -172,7 +200,11 @@ OperatingMode gui_solderingMode(const ButtonState buttons, guiContext *cxt) {
   if (heaterThermalRunawayCounter > 8) {
     currentTempTargetDegC       = 0; // heater control off
     heaterThermalRunawayCounter = 0;
-    cxt->transitionMode         = TransitionAnimation::Right;
+#if defined(LCD_160x80)
+    cxt->transitionMode = TransitionAnimation::None; // ThermalRunaway is a mono screen; hard cut, see above.
+#else
+    cxt->transitionMode = TransitionAnimation::Right;
+#endif
     return OperatingMode::ThermalRunaway;
   }
   return handleSolderingButtons(buttons, cxt);

@@ -122,6 +122,28 @@ public:
   static void transitionScrollDown(const TickType_t viewEnterTime);
   static void transitionScrollUp(const TickType_t viewEnterTime);
 
+#if defined(LCD_160x80)
+  // 2bpp colour screen support (HS-02 home/soldering gauge). Only exists on the colour panel --
+  // DISPLAY_CLASS is OLED on mono boards, which has no 2bpp path at all.
+  static void setColorMode(bool active) { DISPLAY_CLASS::setColorMode(active); }
+  static void setColorPalette(const uint16_t *palette) { DISPLAY_CLASS::setColorPalette(palette); }
+  static void clearScreenColor() { DISPLAY_CLASS::clearScreenColor(); }
+  static void fillRectColor(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t colorIndex) { DISPLAY_CLASS::fillRect2bpp(x, y, w, h, colorIndex); }
+  static void drawRingColor(uint8_t cx, uint8_t cy, uint8_t r, uint8_t thickness, uint8_t colorIndex, float startAngle, float endAngle) {
+    DISPLAY_CLASS::drawRing2bpp(cx, cy, r, thickness, colorIndex, startAngle, endAngle);
+  }
+  static void drawTickColor(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex) {
+    DISPLAY_CLASS::drawTick2bpp(cx, cy, angle, rInner, rOuter, colorIndex);
+  }
+  static void printColor(const char *str, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex, uint8_t maxChars = 255) {
+    DISPLAY_CLASS::drawTextColor(str, x, y, fontStyle, colorIndex, maxChars);
+  }
+  static void printNumberColor(uint16_t number, uint8_t places, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex);
+  static void drawBitmapColor(const uint8_t *bitmap, uint8_t width, uint8_t height, uint8_t x, uint8_t y, uint8_t colorIndex) {
+    DISPLAY_CLASS::drawBitmap2bpp(bitmap, width, height, x, y, colorIndex);
+  }
+#endif
+
 private:
   static void         drawChar(uint16_t charCode, FontStyle fontStyle, const uint8_t soft_x_limit); // Draw a character to the current cursor location
   static bool         inLeftHandedMode; // Whether the screen is in left or not (used for offsets in GRAM)

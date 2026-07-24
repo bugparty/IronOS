@@ -28,11 +28,15 @@ OperatingMode gui_SolderingSleepingMode(const ButtonState buttons, guiContext *c
   // draw the lcd
   uint16_t tipTemp = getSettingValue(SettingsOptions::TemperatureInF) ? TipThermoModel::getTipInF() : TipThermoModel::getTipInC();
 
+#if defined(LCD_160x80)
+  ui_draw_home_gauge_sleep(tipTemp);
+#else
   if (getSettingValue(SettingsOptions::DetailedSoldering)) {
     ui_draw_soldering_detailed_sleep(tipTemp);
   } else {
     ui_draw_soldering_basic_sleep(tipTemp);
   }
+#endif
 
   if (!shouldBeSleeping()) {
     return cxt->previousMode;

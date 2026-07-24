@@ -146,6 +146,8 @@ def get_constants() -> List[Tuple[str, str]]:
         ("SmallSymbolTipCal", "Tip Cal"),
         ("SmallSymbolTipCalInUse", "In Use"),
         ("SmallSymbolTipCalUnused", "Unused 26uV/C"),
+        ("SmallSymbolSetPoint", "SET"),
+        ("SmallSymbolBoostActive", "BOOST"),
         ("SmallSymbolState", "State"),
         ("SmallSymbolNoVBus", "No VBus"),
         ("SmallSymbolVBus", "VBus"),
