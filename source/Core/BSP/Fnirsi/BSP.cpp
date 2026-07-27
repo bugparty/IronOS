@@ -5,15 +5,15 @@
 #include "n32l40x_wwdg.h"
 // #include "BootLogo.h"
 // #include "I2C_Wrapper.hpp"
+#include "Buttons.hpp"
+#include "FnirsiBootLogo.h"
+#include "FreeRTOS.h"
 #include "Pins.h"
-// #include "Settings.h"
+#include "Settings.h"
 #include "Setup.h"
 #include "TipThermoModel.h"
 #include "history.hpp"
-#include "FreeRTOS.h"
 #include "task.h"
-#include "Buttons.hpp"
-#include "FnirsiBootLogo.h"
 // n32l40x.h defines LCD as a peripheral pointer macro; free the name for the LCD class.
 #undef LCD
 #include "LCD.hpp"
@@ -142,10 +142,10 @@ bool          isTipDisconnected() {
 }
 
 void setStatusLED(const enum StatusLED state) {
-  static bool led;
+  static bool       led;
   static TickType_t last;
-  TickType_t now = xTaskGetTickCount();
-  TickType_t delta = now - last;
+  TickType_t        now   = xTaskGetTickCount();
+  TickType_t        delta = now - last;
 
   switch (state) {
   // ON
@@ -156,7 +156,7 @@ void setStatusLED(const enum StatusLED state) {
   // Blink fast
   case LED_HEATING:
     if (delta >= 200) {
-      led = !led;
+      led  = !led;
       last = now;
     }
     break;
@@ -164,10 +164,10 @@ void setStatusLED(const enum StatusLED state) {
   // Slow flash
   case LED_COOLING_STILL_HOT:
     if ((led) && (delta >= 100)) {
-      led = !led;
+      led  = !led;
       last = now;
     } else if ((!led) && (delta >= 900)) {
-      led = !led;
+      led  = !led;
       last = now;
     }
     break;
@@ -313,8 +313,12 @@ uint16_t getTipInertia() {
 
 void showBootLogo(void) {
   // Blit the colour FNIRSI logo (extracted from stock firmware) straight to the panel,
-  // then hold it until a button is pressed or the user's logo timeout elapses.
+  // then reveal it and hold until a button is pressed or the timeout elapses.
   LCD::drawNativeImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H, fnirsiBootLogo);
+  // SPI has drained here, but wait for the panel to scan the new GRAM once before
+  // enabling its backlight; this avoids exposing the previous white scanline.
+  vTaskDelay(TICKS_SECOND / 60);
+  LCD::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
   waitForButtonPressOrTimeout(TICKS_SECOND * 2);
 }
 

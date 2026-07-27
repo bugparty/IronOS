@@ -73,7 +73,7 @@ public:
   }
 
   // Set the rotation for the screen
-  static void setRotation(bool leftHanded);
+  static void setRotation(bool leftHanded, bool refresh = true);
   // Get the current rotation of the LCD
   static bool getRotation() {
 #ifdef DISPLAY_FLIP

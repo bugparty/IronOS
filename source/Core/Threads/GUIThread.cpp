@@ -170,7 +170,8 @@ OperatingMode guiHandleDraw(void) {
   return newMode;
 }
 void guiRenderLoop(void) {
-  OperatingMode newMode = guiHandleDraw(); // This does the screen drawing
+  const bool    nativeStartupLogo = currentOperatingMode == OperatingMode::StartupLogo;
+  OperatingMode newMode           = guiHandleDraw(); // This does the screen drawing
 
   // Post draw we handle any state transitions
 
@@ -225,8 +226,21 @@ void guiRenderLoop(void) {
 
     context.transitionMode = TransitionAnimation::None; // Clear transition flag
   }
-  // Render done, draw it out
-  Display::refresh();
+  // The native boot logo bypasses the framebuffer. Do not overwrite it with
+  // the cleared framebuffer before the following home-screen render.
+  if (!nativeStartupLogo) {
+    Display::refresh();
+  }
+
+#if defined(LCD_160x80)
+  // Startup warnings are rendered into the framebuffer. Reveal the panel only
+  // after that completed frame is on the LCD, never while it contains a blank
+  // initialization frame.
+  if (currentOperatingMode == OperatingMode::StartupWarnings && context.scratch_state.state7) {
+    Display::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
+    context.scratch_state.state7 = 0;
+  }
+#endif
 }
 
 OperatingMode handle_post_init_state() {
@@ -253,8 +267,10 @@ void startGUITask(void const *argument) {
   (void)argument;
   prepareTranslations();
 
+#if defined(LCD_160x80)
+  Display::setBrightness(0);
+#endif
   Display::initialize(); // start up the LCD
-  Display::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
   Display::setInverseDisplay(getSettingValue(SettingsOptions::DisplayInversion));
 
   bool buttonLockout = false;
@@ -262,7 +278,7 @@ void startGUITask(void const *argument) {
   getTipRawTemp(1); // reset filter
   memset(&context, 0, sizeof(context));
 
-  Display::setRotation(getSettingValue(SettingsOptions::OrientationMode) & 1);
+  Display::setRotation(getSettingValue(SettingsOptions::OrientationMode) & 1, false);
 
   // Read boot button state
   if (getButtonA()) {

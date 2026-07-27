@@ -90,7 +90,7 @@ public:
   }
 
   // Set the rotation for the screen
-  static void setRotation(bool leftHanded);
+  static void setRotation(bool leftHanded, bool refresh = true);
   static void setBrightness(uint8_t brightness);
   static void setInverse(bool inverted);
 

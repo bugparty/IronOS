@@ -212,14 +212,19 @@ void Display::transitionScrollUp(const TickType_t viewEnterTime) {
   }
 }
 
-void Display::setRotation(bool leftHanded) {
+void Display::setRotation(bool leftHanded, bool refresh) {
 #ifdef DISPLAY_FLIP
   leftHanded = !leftHanded;
 #endif /* DISPLAY_FLIP */
   if (inLeftHandedMode == leftHanded) {
     return;
   }
+#if defined(LCD_160x80)
+  DISPLAY_CLASS::setRotation(leftHanded, refresh);
+#else
+  (void)refresh;
   DISPLAY_CLASS::setRotation(leftHanded);
+#endif
   inLeftHandedMode = leftHanded;
 }
 

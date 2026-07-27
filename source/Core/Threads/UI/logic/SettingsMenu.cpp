@@ -24,13 +24,13 @@ static void printShortDescription(SettingsItemIndex settingsItemIndex, uint16_t 
   uint8_t shortDescIndex = static_cast<uint8_t>(settingsItemIndex);
   Display::printWholeScreen(translatedString(Tr->SettingsShortNames[shortDescIndex]));
 
-  // prepare cursor for value
-  // make room for scroll indicator
-  #ifdef LCD_160x80
+// prepare cursor for value
+// make room for scroll indicator
+#ifdef LCD_160x80
   Display::setCursor(4, 40);
-  #else
+#else
   Display::setCursor(cursorCharPosition * FONT_LARGE_WIDTH - 2, 0);
-  #endif
+#endif
 }
 
 // Render a menu, based on the position given

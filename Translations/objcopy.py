@@ -2,7 +2,6 @@ import os
 import subprocess
 import tempfile
 
-
 if "OBJCOPY" in os.environ:
     OBJCOPY = os.environ["OBJCOPY"]
 else:

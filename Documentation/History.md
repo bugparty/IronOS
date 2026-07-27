@@ -1,4 +1,10 @@
 # Version Changes
+## v1.01
+
+- Improve KXTJ3 accelerometer motion sensitivity on the FNIRSI HS-02.
+- Replace inappropriate LCD driver task sleeps with scheduler-safe delays.
+- Eliminate the brief white flash before the startup logo appears.
+
 ## v1.00
 - Initial FNIRSI HS-02 release.
 - [ARDC](https://nl.mathworks.com/help/slcontrol/ug/active-disturbance-rejection-control.html) temperature control to provide faster response than classical PID and zero steady state error (the original PID implementation has limited integration which fails to keep the temperature under heavy loads).

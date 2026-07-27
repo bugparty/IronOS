@@ -13,7 +13,7 @@ void ui_draw_debug_menu(const uint8_t item_number) {
   Display::print(SmallSymbolVersionNumber, FontStyle::SMALL); // Print version number
   Display::setCursor(0, 24);                                  // second line
   Display::print(DebugMenu[item_number], FontStyle::SMALL);
-  Display::setCursor(LCD_WIDTH - 6*FONT_SMALL_WIDTH, 48);     // third line
+  Display::setCursor(LCD_WIDTH - 6 * FONT_SMALL_WIDTH, 48); // third line
   uint16_t tmp;
   switch (item_number) {
   case 0: // Build Date

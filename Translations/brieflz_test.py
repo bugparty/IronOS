@@ -2,7 +2,6 @@
 import brieflz
 import unittest
 
-
 TEST_DATA = (
     b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
     b"Ut consequat mattis orci ac laoreet. Duis ac turpis tempus, varius lacus non, dignissim lectus. "

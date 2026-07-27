@@ -2,13 +2,20 @@
 #include "HUB238.hpp"
 #include "OperatingModes.h"
 #include "ui_drawing.hpp"
+
+static bool showStartupWarning(const char *warning, const ButtonState buttons, guiContext *cxt) {
+  // GUIThread enables the HS-02 backlight after this warning frame is flushed.
+  cxt->scratch_state.state7 = 1;
+  return warnUser(warning, buttons);
+}
+
 OperatingMode showWarnings(const ButtonState buttons, guiContext *cxt) {
   // Display alert if settings were reset
 
   switch (cxt->scratch_state.state1) {
   case 0: // Settings reset warning
     if (settingsWereReset) {
-      if (warnUser(translatedString(Tr->SettingsResetMessage), buttons)) {
+      if (showStartupWarning(translatedString(Tr->SettingsResetMessage), buttons, cxt)) {
         settingsWereReset         = false;
         cxt->scratch_state.state1 = 1;
       }
@@ -20,7 +27,7 @@ OperatingMode showWarnings(const ButtonState buttons, guiContext *cxt) {
 #ifdef DEVICE_HAS_VALIDATION_SUPPORT
     if (getDeviceValidationStatus()) {
       // Warn user this device might be counterfeit
-      if (warnUser(translatedString(Tr->DeviceFailedValidationWarning), buttons)) {
+      if (showStartupWarning(translatedString(Tr->DeviceFailedValidationWarning), buttons, cxt)) {
         cxt->scratch_state.state1 = 2;
       }
     } else {
@@ -41,7 +48,7 @@ OperatingMode showWarnings(const ButtonState buttons, guiContext *cxt) {
     if (DetectedAccelerometerVersion == AccelType::None) {
       if (getSettingValue(SettingsOptions::AccelMissingWarningCounter) < 2) {
 
-        if (warnUser(translatedString(Tr->NoAccelerometerMessage), buttons)) {
+        if (showStartupWarning(translatedString(Tr->NoAccelerometerMessage), buttons, cxt)) {
           cxt->scratch_state.state1 = 3;
           nextSettingValue(SettingsOptions::AccelMissingWarningCounter);
           saveSettings();
@@ -61,7 +68,7 @@ OperatingMode showWarnings(const ButtonState buttons, guiContext *cxt) {
     // We expect pd to be present
     if (!USBPowerDelivery::fusbPresent()) {
       if (getSettingValue(SettingsOptions::PDMissingWarningCounter) < 2) {
-        if (warnUser(translatedString(Tr->NoPowerDeliveryMessage), buttons)) {
+        if (showStartupWarning(translatedString(Tr->NoPowerDeliveryMessage), buttons, cxt)) {
           nextSettingValue(SettingsOptions::PDMissingWarningCounter);
           saveSettings();
           cxt->scratch_state.state1 = 4;
@@ -76,7 +83,7 @@ OperatingMode showWarnings(const ButtonState buttons, guiContext *cxt) {
 #if POW_PD_EXT == 1
     if (!hub238_probe()) {
       if (getSettingValue(SettingsOptions::PDMissingWarningCounter) < 2) {
-        if (warnUser(translatedString(Tr->NoPowerDeliveryMessage), buttons)) {
+        if (showStartupWarning(translatedString(Tr->NoPowerDeliveryMessage), buttons, cxt)) {
           cxt->scratch_state.state1 = 4;
           nextSettingValue(SettingsOptions::PDMissingWarningCounter);
           saveSettings();
@@ -91,7 +98,7 @@ OperatingMode showWarnings(const ButtonState buttons, guiContext *cxt) {
 #if POW_PD_EXT == 2
     if (!FS2711::probe()) {
       if (getSettingValue(SettingsOptions::PDMissingWarningCounter) < 2) {
-        if (warnUser(translatedString(Tr->NoPowerDeliveryMessage), buttons)) {
+        if (showStartupWarning(translatedString(Tr->NoPowerDeliveryMessage), buttons, cxt)) {
           cxt->scratch_state.state1 = 4;
           nextSettingValue(SettingsOptions::PDMissingWarningCounter);
           saveSettings();

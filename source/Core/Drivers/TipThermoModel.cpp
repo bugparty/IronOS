@@ -74,10 +74,7 @@ TemperatureType_t TipThermoModel::convertFtoC(TemperatureType_t degF) {
   return ((degF - 32) * 5) / 9;
 }
 
-TemperatureType_t TipThermoModel::getTipInC(bool sampleNow) {
-  
-  return getTipInCx10(sampleNow)/10;
-}
+TemperatureType_t TipThermoModel::getTipInC(bool sampleNow) { return getTipInCx10(sampleNow) / 10; }
 
 TemperatureType_t TipThermoModel::getTipInCx10(bool sampleNow) {
   TemperatureType_t currentTipTempInCx10 = TipThermoModel::convertTipRawADCToDegCx10(getTipRawTemp(sampleNow));

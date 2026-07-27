@@ -9,13 +9,13 @@
 #include "BSP.h"
 #include "FreeRTOS.h"
 #include "I2C_Wrapper.hpp"
+#include "KXTJ3.hpp"
 #include "LIS2DH12.hpp"
 #include "MMA8652FC.hpp"
 #include "MSA301.h"
 #include "Pins.h"
 #include "QC3.h"
 #include "SC7A20.hpp"
-#include "KXTJ3.hpp"
 #include "Settings.h"
 #include "TipThermoModel.h"
 #include "cmsis_os.h"
@@ -26,8 +26,29 @@
 #include "stdlib.h"
 #include "task.h"
 
-#define MOVFilter 8
-uint8_t    accelInit        = 0;
+#if defined(MODEL_HS02)
+// The KXTJ3 uses 14-bit samples at +/-2 g (about 4096 counts per g).  The
+// generic filter was tuned for other irons: it looked back 800 ms and, even at
+// sensitivity 9, required roughly 0.37 g of instantaneous change.  A shorter
+// baseline and a wider threshold range make the HS-02 setting usable without
+// changing the behaviour of other models.
+#define MOVFilter      4
+#define MOV_POLL_DELAY (TICKS_100MS / 2)
+
+static int32_t movementThresholdForSensitivity(uint16_t sensitivity) {
+  // Level 9 is intentionally just above the sensor-noise floor, so light
+  // handling wakes the device.  Lower levels retain progressively more margin
+  // against incidental bench vibration.
+  return 1120 - static_cast<int32_t>(sensitivity) * 120;
+}
+#else
+#define MOVFilter      8
+#define MOV_POLL_DELAY TICKS_100MS
+
+static int32_t movementThresholdForSensitivity(uint16_t sensitivity) { return 1500 + (9 * 200) - static_cast<int32_t>(sensitivity) * 200; }
+#endif
+
+uint8_t             accelInit        = 0;
 volatile TickType_t lastMovementTime = 0;
 // Order matters for probe order, some Acceleromters do NOT like bad reads; and we have a bunch of overlap of addresses
 void detectAccelerometerVersion() {
@@ -183,8 +204,7 @@ void startMOVTask(void const *argument __unused) {
   uint16_t tripCounter = 0;
 #endif
   for (;;) {
-    int32_t threshold = 1500 + (9 * 200);
-    threshold -= getSettingValue(SettingsOptions::Sensitivity) * 200; // 200 is the step size
+    int32_t threshold = movementThresholdForSensitivity(getSettingValue(SettingsOptions::Sensitivity));
     readAccelerometer(tx, ty, tz, rotation);
     if (getSettingValue(SettingsOptions::OrientationMode) == 2) {
       if (rotation != ORIENTATION_FLAT) {
@@ -237,6 +257,6 @@ void startMOVTask(void const *argument __unused) {
 
 #endif
 
-    vTaskDelay(TICKS_100MS); // Slow down update rate
+    vTaskDelay(MOV_POLL_DELAY);
   }
 }
