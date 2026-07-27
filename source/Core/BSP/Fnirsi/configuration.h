@@ -82,7 +82,7 @@
  * Button backlight <- ->
  * 
  */
-#define BUTTON_BACKLIGHT 0  // 0: Disabled, 1: Enabled (looks odd, leaks under OK button)
+#define BUTTON_BACKLIGHT 1 // 0: Disabled, 1: Enabled at boot
 
 /**
  * Temp change settings
