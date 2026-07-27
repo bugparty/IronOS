@@ -9,13 +9,13 @@
 #include "BSP.h"
 #include "FreeRTOS.h"
 #include "I2C_Wrapper.hpp"
+#include "KXTJ3.hpp"
 #include "LIS2DH12.hpp"
 #include "MMA8652FC.hpp"
 #include "MSA301.h"
 #include "Pins.h"
 #include "QC3.h"
 #include "SC7A20.hpp"
-#include "KXTJ3.hpp"
 #include "Settings.h"
 #include "TipThermoModel.h"
 #include "cmsis_os.h"
@@ -32,7 +32,7 @@
 // sensitivity 9, required roughly 0.37 g of instantaneous change.  A shorter
 // baseline and a wider threshold range make the HS-02 setting usable without
 // changing the behaviour of other models.
-#define MOVFilter 4
+#define MOVFilter      4
 #define MOV_POLL_DELAY (TICKS_100MS / 2)
 
 static int32_t movementThresholdForSensitivity(uint16_t sensitivity) {
@@ -42,15 +42,13 @@ static int32_t movementThresholdForSensitivity(uint16_t sensitivity) {
   return 1120 - static_cast<int32_t>(sensitivity) * 120;
 }
 #else
-#define MOVFilter 8
+#define MOVFilter      8
 #define MOV_POLL_DELAY TICKS_100MS
 
-static int32_t movementThresholdForSensitivity(uint16_t sensitivity) {
-  return 1500 + (9 * 200) - static_cast<int32_t>(sensitivity) * 200;
-}
+static int32_t movementThresholdForSensitivity(uint16_t sensitivity) { return 1500 + (9 * 200) - static_cast<int32_t>(sensitivity) * 200; }
 #endif
 
-uint8_t    accelInit        = 0;
+uint8_t             accelInit        = 0;
 volatile TickType_t lastMovementTime = 0;
 // Order matters for probe order, some Acceleromters do NOT like bad reads; and we have a bunch of overlap of addresses
 void detectAccelerometerVersion() {

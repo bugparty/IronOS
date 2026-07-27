@@ -317,7 +317,7 @@ def get_letter_counts(defs: dict, lang: dict, build_version: str) -> Dict:
 
 
 def convert_letter_counts_to_ranked_symbols_with_forced(
-    symbol_dict: Dict[str, int]
+    symbol_dict: Dict[str, int],
 ) -> List[str]:
     # Add in forced symbols first
     ranked_symbols = []
@@ -482,8 +482,10 @@ class FontMapsPerFont:
 
 
 def get_font_map_per_font(
-    text_list_small_font: List[str], text_list_large_font: List[str],
-    type_small_font: str, type_large_font: str
+    text_list_small_font: List[str],
+    text_list_large_font: List[str],
+    type_small_font: str,
+    type_large_font: str,
 ) -> FontMapsPerFont:
     pending_small_symbols = set(text_list_small_font)
     pending_large_symbols = set(text_list_large_font)
@@ -530,7 +532,9 @@ def get_font_map_per_font(
     # This creates our superset of characters to reference off that are pre-rendered ones (non CJK)
     # Collect font bitmaps by the defined font order:
     for font in font_tables.ALL_PRE_RENDERED_FONTS:
-        font12, font06 = font_tables.get_font_maps_for_name(font, type_small_font, type_large_font)
+        font12, font06 = font_tables.get_font_maps_for_name(
+            font, type_small_font, type_large_font
+        )
         font12_map.update(font12)
         font06_map.update(font06)
 
@@ -701,8 +705,13 @@ class LanguageData:
     font_map: FontMapsPerFont
 
 
-def prepare_language(lang: dict, defs: dict, build_version: str,
-                     small_font_type: str, large_font_type: str) -> LanguageData:
+def prepare_language(
+    lang: dict,
+    defs: dict,
+    build_version: str,
+    small_font_type: str,
+    large_font_type: str,
+) -> LanguageData:
     language_code: str = lang["languageCode"]
     logging.info(f"Preparing language data for {language_code}")
     # Iterate over all of the text to build up the symbols & counts
@@ -716,8 +725,9 @@ def prepare_language(lang: dict, defs: dict, build_version: str,
 
     # From the letter counts, need to make a symbol index and matching font index
 
-    font_data = get_font_map_per_font(small_font_symbols, large_font_symbols, 
-                                      small_font_type, large_font_type)
+    font_data = get_font_map_per_font(
+        small_font_symbols, large_font_symbols, small_font_type, large_font_type
+    )
 
     return LanguageData(
         [lang],
@@ -730,8 +740,11 @@ def prepare_language(lang: dict, defs: dict, build_version: str,
 
 
 def prepare_languages(
-    langs: List[dict], defs: dict, build_version: str,
-    small_font_type: str, large_font_type: str
+    langs: List[dict],
+    defs: dict,
+    build_version: str,
+    small_font_type: str,
+    large_font_type: str,
 ) -> LanguageData:
     language_codes: List[str] = [lang["languageCode"] for lang in langs]
     logging.info(f"Preparing language data for {language_codes}")
@@ -750,8 +763,9 @@ def prepare_languages(
     large_font_symbols = convert_letter_counts_to_ranked_symbols_with_forced(
         total_symbol_counts["bigFontCounts"]
     )
-    font_data = get_font_map_per_font(small_font_symbols, large_font_symbols,
-                                      small_font_type, large_font_type)
+    font_data = get_font_map_per_font(
+        small_font_symbols, large_font_symbols, small_font_type, large_font_type
+    )
 
     return LanguageData(
         langs,
@@ -1483,15 +1497,17 @@ def main() -> None:
             lang_ = filter_translation(
                 read_translation(json_dir, args.languageCodes[0]), defs_, macros
             )
-            language_data = prepare_language(lang_, defs_, build_version, 
-                                             args.small_font, args.large_font)
+            language_data = prepare_language(
+                lang_, defs_, build_version, args.small_font, args.large_font
+            )
         else:
             langs_ = [
                 filter_translation(read_translation(json_dir, lang_code), defs_, macros)
                 for lang_code in args.languageCodes
             ]
-            language_data = prepare_languages(langs_, defs_, build_version,
-                                              args.small_font, args.large_font)
+            language_data = prepare_languages(
+                langs_, defs_, build_version, args.small_font, args.large_font
+            )
 
     out_ = args.output
     write_start(out_)

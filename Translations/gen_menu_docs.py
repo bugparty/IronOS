@@ -6,7 +6,6 @@ import os
 import sys
 from pathlib import Path
 
-
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
