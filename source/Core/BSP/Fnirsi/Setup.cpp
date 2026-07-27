@@ -183,7 +183,7 @@ static void gpioInit(void) {
   GPIO_InitStructure.Pin = LCD_BL_Pin;
   GPIO_InitPeripheral(LCD_BL_Port, &GPIO_InitStructure);
 
-  GPIO_InitStructure.Pin          = BUZZ_Pin;
+  GPIO_InitStructure.Pin            = BUZZ_Pin;
   GPIO_InitStructure.GPIO_Alternate = GPIO_AF5_TIM2;
   GPIO_InitPeripheral(BUZZ_Port, &GPIO_InitStructure);
 
@@ -206,16 +206,15 @@ static void gpioInit(void) {
 #else
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
   GPIO_InitPeripheral(LED_Port, &GPIO_InitStructure);
-  #if BUTTON_BACKLIGHT != 0
+#if BUTTON_BACKLIGHT != 0
   GPIO_SetBits(LED_Port, LED1_Pin); // Enable <-> button LEDs
-  #endif
+#endif
 #endif
 
   // Temporary manual configs
   GPIO_ResetBits(USB_CTL_Port, USB_CTL_Pin); // Route USB to CH224 and request 20V
   GPIO_ResetBits(CH224_CFG_Port, CH224_CFG3_Pin);
   GPIO_SetBits(CH224_CFG_Port, CH224_CFG2_Pin);
-
 }
 
 static void adcInit(void) {
@@ -314,15 +313,15 @@ static void tim1Init(void) {
 
   OCInitType ocInitStruct;
   TIM_InitOcStruct(&ocInitStruct);
-  ocInitStruct.OcMode      = TIM_OCMODE_PWM1;
-  ocInitStruct.Pulse       = 0;
+  ocInitStruct.OcMode = TIM_OCMODE_PWM1;
+  ocInitStruct.Pulse  = 0;
 
   // Output PWM
   ocInitStruct.OcPolarity  = TIM_OC_POLARITY_HIGH;
   ocInitStruct.OutputState = TIM_OUTPUT_STATE_ENABLE;
   TIM_InitOc1(TIM1, &ocInitStruct);
   TIM_ConfigOc1Fast(TIM1, TIM_OC_FAST_ENABLE);
-  
+
   // LCD backlight PWM
   ocInitStruct.OcNPolarity  = TIM_OCN_POLARITY_HIGH;
   ocInitStruct.OutputNState = TIM_OUTPUT_NSTATE_ENABLE;
@@ -343,7 +342,7 @@ static void tim2Init(void) {
 
   timBaseInitStruct.CntMode   = TIM_CNT_MODE_UP;
   timBaseInitStruct.RepetCnt  = 0;
-  timBaseInitStruct.Prescaler = 249;  // 64MHz / (249+1) -> 256kHz tick
+  timBaseInitStruct.Prescaler = 249; // 64MHz / (249+1) -> 256kHz tick
   timBaseInitStruct.Period    = 127; // 256kHz / (127+1) -> 2kHz
 
   TIM_InitTimeBase(TIM2, &timBaseInitStruct);

@@ -96,62 +96,80 @@ void FRToSSPI::sendPixels(uint8_t *data, size_t length) {
   for (size_t i = 0; i < length; i++) {
     uint8_t tmp = data[i];
     uint8_t pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-    SPI1->DAT = pix;
-
-    tmp >>= 1;
-    pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-    SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
 
     tmp >>= 1;
     pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-    SPI1->DAT = pix;
-
-    tmp >>= 1;
-    pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-    SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
 
     tmp >>= 1;
     pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-    SPI1->DAT = pix;
-
-    tmp >>= 1;
-    pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-    SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
 
     tmp >>= 1;
     pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
 
     tmp >>= 1;
     pix = (tmp & 1) ? 0xFF : 0x00;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
-    while (!(SPI1->STS & SPI_I2S_TE_FLAG));
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
+    SPI1->DAT = pix;
+
+    tmp >>= 1;
+    pix = (tmp & 1) ? 0xFF : 0x00;
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
+    SPI1->DAT = pix;
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
+    SPI1->DAT = pix;
+
+    tmp >>= 1;
+    pix = (tmp & 1) ? 0xFF : 0x00;
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
+    SPI1->DAT = pix;
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
+    SPI1->DAT = pix;
+
+    tmp >>= 1;
+    pix = (tmp & 1) ? 0xFF : 0x00;
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
+    SPI1->DAT = pix;
+    while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+      ;
     SPI1->DAT = pix;
   }
-  while (!(SPI1->STS & SPI_I2S_TE_FLAG));
-  while (SPI1->STS & SPI_I2S_BUSY_FLAG);
+  while (!(SPI1->STS & SPI_I2S_TE_FLAG))
+    ;
+  while (SPI1->STS & SPI_I2S_BUSY_FLAG)
+    ;
   LCD_CS_HIGH();
 }
 

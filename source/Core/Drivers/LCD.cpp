@@ -9,15 +9,15 @@
 #include "LCD.hpp"
 #ifdef LCD_160x80
 
+#include "LCD_Port.hpp"
 #include "Settings.h"
 #include "Translation.h"
 #include "cmsis_os.h"
 #include "configuration.h"
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "LCD_Port.hpp"
-#include <math.h>
 
 // rendering to the buffer
 uint8_t *LCD::stripPointers[LCD_HEIGHT / 8]; // Pointers to the strips to allow for buffer having extra content
@@ -134,7 +134,7 @@ static uint16_t easeInOutTiming(uint16_t t) { return t * t * (300 - 2 * t) / 100
 static uint16_t lerp(uint16_t a, uint16_t b, uint16_t t) { return a + t * (b - a) / 100; }
 
 void LCD::initialize() {
-  for (uint8_t i = 0; i < LCD_HEIGHT/8; i++) {
+  for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
     stripPointers[i] = &screenBuffer[i * LCD_WIDTH];
   }
 
@@ -146,7 +146,7 @@ void LCD::initialize() {
 }
 
 void LCD::setFramebuffer(uint8_t *buffer) {
-  for (uint8_t i = 0; i < LCD_HEIGHT/8; i++) {
+  for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
     stripPointers[i] = &buffer[i * LCD_WIDTH];
   }
 }
@@ -158,8 +158,8 @@ void LCD::setFramebuffer(uint8_t *buffer) {
  * Otherwise a rewinding navigation animation is shown to the second framebuffer contents.
  */
 bool LCD::scrollHorizontal(const bool dirForward, uint16_t progress, uint8_t offset) {
-  uint8_t *stripBackPointers[LCD_HEIGHT/8];
-  for (uint8_t i = 0; i < LCD_HEIGHT/8; i++) {
+  uint8_t *stripBackPointers[LCD_HEIGHT / 8];
+  for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
     stripBackPointers[i] = &secondFrameBuffer[i * LCD_WIDTH];
   }
 
@@ -175,11 +175,11 @@ bool LCD::scrollHorizontal(const bool dirForward, uint16_t progress, uint8_t off
 
   offset = progress;
 
-  for (uint8_t i = 0; i < LCD_HEIGHT/8; i++) {
+  for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
     memmove(&stripPointers[i][oldStart], &stripPointers[i][oldPrevious], LCD_WIDTH - progress);
   }
 
-  for (uint8_t i = 0; i < LCD_HEIGHT/8; i++) {
+  for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
     memmove(&stripPointers[i][newStart], &stripBackPointers[i][newEnd], progress);
   }
 
@@ -204,20 +204,20 @@ void LCD::useSecondaryFramebuffer(bool useSecondary) {
 bool LCD::scrollDown(uint8_t pos) {
   static_assert(LCD_WIDTH % 4 == 0, "LCD_WIDTH must be multiple of 4");
   static_assert(LCD_HEIGHT == 80, "LCD_HEIGHT must be 80");
-  uint32_t *const pA = (uint32_t*)screenBuffer;
-  uint32_t *const pB = (uint32_t*)secondFrameBuffer;
+  uint32_t *const pA = (uint32_t *)screenBuffer;
+  uint32_t *const pB = (uint32_t *)secondFrameBuffer;
   // For each line, we shuffle all bits up a row
-  for (uint8_t xPos = 0; xPos < LCD_WIDTH/4; xPos++) {
+  for (uint8_t xPos = 0; xPos < LCD_WIDTH / 4; xPos++) {
     const uint16_t Strip01Pos = xPos;
-    const uint16_t Strip02Pos = Strip01Pos + LCD_WIDTH/4;
-    const uint16_t Strip03Pos = Strip02Pos + LCD_WIDTH/4;
-    const uint16_t Strip04Pos = Strip03Pos + LCD_WIDTH/4;
-    const uint16_t Strip05Pos = Strip04Pos + LCD_WIDTH/4;
-    const uint16_t Strip06Pos = Strip05Pos + LCD_WIDTH/4;
-    const uint16_t Strip07Pos = Strip06Pos + LCD_WIDTH/4;
-    const uint16_t Strip08Pos = Strip07Pos + LCD_WIDTH/4;
-    const uint16_t Strip09Pos = Strip08Pos + LCD_WIDTH/4;
-    const uint16_t Strip10Pos = Strip09Pos + LCD_WIDTH/4;
+    const uint16_t Strip02Pos = Strip01Pos + LCD_WIDTH / 4;
+    const uint16_t Strip03Pos = Strip02Pos + LCD_WIDTH / 4;
+    const uint16_t Strip04Pos = Strip03Pos + LCD_WIDTH / 4;
+    const uint16_t Strip05Pos = Strip04Pos + LCD_WIDTH / 4;
+    const uint16_t Strip06Pos = Strip05Pos + LCD_WIDTH / 4;
+    const uint16_t Strip07Pos = Strip06Pos + LCD_WIDTH / 4;
+    const uint16_t Strip08Pos = Strip07Pos + LCD_WIDTH / 4;
+    const uint16_t Strip09Pos = Strip08Pos + LCD_WIDTH / 4;
+    const uint16_t Strip10Pos = Strip09Pos + LCD_WIDTH / 4;
 
     pA[Strip01Pos] = ((pA[Strip01Pos] >> 1) & 0x7F7F7F7F) | ((pA[Strip02Pos] & 0x01010101) << 7);
     pA[Strip02Pos] = ((pA[Strip02Pos] >> 1) & 0x7F7F7F7F) | ((pA[Strip03Pos] & 0x01010101) << 7);
@@ -253,20 +253,20 @@ bool LCD::scrollDown(uint8_t pos) {
 bool LCD::scrollUp(uint8_t pos) {
   static_assert(LCD_WIDTH % 4 == 0, "LCD_WIDTH must be multiple of 4");
   static_assert(LCD_HEIGHT == 80, "LCD_HEIGHT must be 80");
-  uint32_t *const pA = (uint32_t*)screenBuffer;
-  uint32_t *const pB = (uint32_t*)secondFrameBuffer;
+  uint32_t *const pA = (uint32_t *)screenBuffer;
+  uint32_t *const pB = (uint32_t *)secondFrameBuffer;
   // For each line, we shuffle all bits down a row
-  for (uint8_t xPos = 0; xPos < LCD_WIDTH/4; xPos++) {
+  for (uint8_t xPos = 0; xPos < LCD_WIDTH / 4; xPos++) {
     const uint16_t Strip01Pos = xPos;
-    const uint16_t Strip02Pos = Strip01Pos + LCD_WIDTH/4;
-    const uint16_t Strip03Pos = Strip02Pos + LCD_WIDTH/4;
-    const uint16_t Strip04Pos = Strip03Pos + LCD_WIDTH/4;
-    const uint16_t Strip05Pos = Strip04Pos + LCD_WIDTH/4;
-    const uint16_t Strip06Pos = Strip05Pos + LCD_WIDTH/4;
-    const uint16_t Strip07Pos = Strip06Pos + LCD_WIDTH/4;
-    const uint16_t Strip08Pos = Strip07Pos + LCD_WIDTH/4;
-    const uint16_t Strip09Pos = Strip08Pos + LCD_WIDTH/4;
-    const uint16_t Strip10Pos = Strip09Pos + LCD_WIDTH/4;
+    const uint16_t Strip02Pos = Strip01Pos + LCD_WIDTH / 4;
+    const uint16_t Strip03Pos = Strip02Pos + LCD_WIDTH / 4;
+    const uint16_t Strip04Pos = Strip03Pos + LCD_WIDTH / 4;
+    const uint16_t Strip05Pos = Strip04Pos + LCD_WIDTH / 4;
+    const uint16_t Strip06Pos = Strip05Pos + LCD_WIDTH / 4;
+    const uint16_t Strip07Pos = Strip06Pos + LCD_WIDTH / 4;
+    const uint16_t Strip08Pos = Strip07Pos + LCD_WIDTH / 4;
+    const uint16_t Strip09Pos = Strip08Pos + LCD_WIDTH / 4;
+    const uint16_t Strip10Pos = Strip09Pos + LCD_WIDTH / 4;
 
     pA[Strip10Pos] = ((pA[Strip10Pos] << 1) & 0xFEFEFEFE) | ((pA[Strip09Pos] & 0x80808080) >> 7);
     pA[Strip09Pos] = ((pA[Strip09Pos] << 1) & 0xFEFEFEFE) | ((pA[Strip08Pos] & 0x80808080) >> 7);
@@ -304,14 +304,10 @@ void LCD::setRotation(bool leftHanded, bool refresh) {
   }
 }
 
-void LCD::setBrightness(uint8_t brightness) {
-  LCDSetBacklight(brightness);
-}
+void LCD::setBrightness(uint8_t brightness) { LCDSetBacklight(brightness); }
 
 void LCD::setInverse(bool inverse) {
-  const FRToSSPI::SPI_CMD cmdInvSet = {
-    (uint8_t)(inverse ? ST7735_INVON : ST7735_INVOFF), FRToSSPI::SPI_CMD_PAYLOAD, 0, NULL
-  };
+  const FRToSSPI::SPI_CMD cmdInvSet = {(uint8_t)(inverse ? ST7735_INVON : ST7735_INVOFF), FRToSSPI::SPI_CMD_PAYLOAD, 0, NULL};
   FRToSSPI::sendCmdChain(&cmdInvSet, 1);
 }
 
@@ -431,9 +427,9 @@ void LCD::refreshColor() {
   setDrawingWindow(0, 0, LCD_WIDTH, LCD_HEIGHT);
   for (uint16_t x = 0; x < LCD_WIDTH; x++) {
     for (uint16_t y = 0; y < LCD_HEIGHT; y++) {
-      uint8_t  packed = screenBuffer[y * (LCD_WIDTH / 4) + (x / 4)];
-      uint8_t  index  = (packed >> ((x % 4) * 2)) & 0x3;
-      uint16_t rgb    = (uint16_t)~activePalette2bpp[index]; // INVON: send the inverse of the true colour
+      uint8_t  packed   = screenBuffer[y * (LCD_WIDTH / 4) + (x / 4)];
+      uint8_t  index    = (packed >> ((x % 4) * 2)) & 0x3;
+      uint16_t rgb      = (uint16_t)~activePalette2bpp[index]; // INVON: send the inverse of the true colour
       colRGB[y * 2]     = (uint8_t)(rgb >> 8);
       colRGB[y * 2 + 1] = (uint8_t)(rgb & 0xFF);
     }
@@ -461,18 +457,18 @@ void LCD::plotRadialSegment(uint8_t cx, uint8_t cy, float angle, uint8_t rInner,
 }
 
 void LCD::drawRing2bpp(uint8_t cx, uint8_t cy, uint8_t r, uint8_t thickness, uint8_t colorIndex, float startAngle, float endAngle) {
-  const uint8_t rInner = (thickness / 2 >= r) ? 0 : r - thickness / 2;
-  const uint8_t rOuter = r + thickness / 2;
-  const uint16_t innerSquared = rInner * rInner;
-  const uint16_t outerSquared = rOuter * rOuter;
-  constexpr float kTwoPi = 6.28318531f;
+  const uint8_t   rInner       = (thickness / 2 >= r) ? 0 : r - thickness / 2;
+  const uint8_t   rOuter       = r + thickness / 2;
+  const uint16_t  innerSquared = rInner * rInner;
+  const uint16_t  outerSquared = rOuter * rOuter;
+  constexpr float kTwoPi       = 6.28318531f;
 
   // Rasterise the annular sector directly. Sampling radial spokes leaves holes
   // after float-to-integer truncation; testing every pixel guarantees a solid
   // ring on the actual 160x80 framebuffer.
   for (int16_t y = (int16_t)cy - rOuter; y <= (int16_t)cy + rOuter; y++) {
     for (int16_t x = (int16_t)cx - rOuter; x <= (int16_t)cx + rOuter; x++) {
-      const int16_t dx = x - cx, dy = y - cy;
+      const int16_t  dx = x - cx, dy = y - cy;
       const uint16_t distanceSquared = dx * dx + dy * dy;
       if (distanceSquared < innerSquared || distanceSquared > outerSquared) {
         continue;
@@ -491,9 +487,7 @@ void LCD::drawRing2bpp(uint8_t cx, uint8_t cy, uint8_t r, uint8_t thickness, uin
   }
 }
 
-void LCD::drawTick2bpp(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex) {
-  plotRadialSegment(cx, cy, angle, rInner, rOuter, colorIndex);
-}
+void LCD::drawTick2bpp(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex) { plotRadialSegment(cx, cy, angle, rInner, rOuter, colorIndex); }
 
 void LCD::drawGlyph2bpp(uint16_t charCode, FontStyle fontStyle, uint8_t x, uint8_t y, uint8_t colorIndex) {
   const uint8_t *currentFont;
@@ -510,10 +504,10 @@ void LCD::drawGlyph2bpp(uint16_t charCode, FontStyle fontStyle, uint8_t x, uint8
       return;
     }
     const bool small = (fontStyle == FontStyle::SMALL);
-    fontWidth   = small ? kSmallW : kLargeW;
-    fontHeight  = small ? kSmallH : kLargeH;
-    currentFont = small ? FontSectionInfo.font06_start_ptr : FontSectionInfo.font12_start_ptr;
-    index       = charCode - 2;
+    fontWidth        = small ? kSmallW : kLargeW;
+    fontHeight       = small ? kSmallH : kLargeH;
+    currentFont      = small ? FontSectionInfo.font06_start_ptr : FontSectionInfo.font12_start_ptr;
+    index            = charCode - 2;
   }
 
   const uint8_t *charPointer = currentFont + ((fontWidth * (fontHeight / 8)) * index);

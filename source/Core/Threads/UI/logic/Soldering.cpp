@@ -66,10 +66,10 @@ OperatingMode handleSolderingButtons(const ButtonState buttons, guiContext *cxt)
     // family too, so this is always a hard cut here.
     cxt->transitionMode = TransitionAnimation::None;
 #else
-    {
-      bool detailedView   = getSettingValue(SettingsOptions::DetailedIDLE) && getSettingValue(SettingsOptions::DetailedSoldering);
-      cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
-    }
+  {
+    bool detailedView   = getSettingValue(SettingsOptions::DetailedIDLE) && getSettingValue(SettingsOptions::DetailedSoldering);
+    cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+  }
 #endif
     return OperatingMode::HomeScreen;
   case BUTTON_F_LONG:

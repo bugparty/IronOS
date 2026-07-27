@@ -170,8 +170,8 @@ OperatingMode guiHandleDraw(void) {
   return newMode;
 }
 void guiRenderLoop(void) {
-  const bool nativeStartupLogo = currentOperatingMode == OperatingMode::StartupLogo;
-  OperatingMode newMode = guiHandleDraw(); // This does the screen drawing
+  const bool    nativeStartupLogo = currentOperatingMode == OperatingMode::StartupLogo;
+  OperatingMode newMode           = guiHandleDraw(); // This does the screen drawing
 
   // Post draw we handle any state transitions
 

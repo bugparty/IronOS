@@ -14,7 +14,7 @@ const int32_t ohmsToDegCx10[] = {
     //
     //  Resistance (ohms x10)	Temperature (Celsius x10)
 
-    10000, 0,   //
+    10000, 0,    //
     10390, 100,  //
     10779, 200,  //
     11167, 300,  //

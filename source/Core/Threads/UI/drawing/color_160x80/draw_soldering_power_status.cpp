@@ -11,8 +11,8 @@ void ui_draw_soldering_power_status(bool boost_mode_on) {
   Display::setCursor(24, 0);
   if (boost_mode_on) { // Boost mode is on
     Display::drawSymbol(2);
-  // } else {
-  //   Display::print(LargeSymbolSpace, FontStyle::SMALL);
+    // } else {
+    //   Display::print(LargeSymbolSpace, FontStyle::SMALL);
   }
 #ifndef NO_SLEEP_MODE
   if (getSettingValue(SettingsOptions::Sensitivity) && getSettingValue(SettingsOptions::SleepTime)) {
@@ -46,6 +46,5 @@ void ui_draw_soldering_power_status(bool boost_mode_on) {
     }
     Display::print(SmallSymbolWatts, FontStyle::SMALL);
   }
-
 }
 #endif
