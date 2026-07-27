@@ -1,4 +1,8 @@
 # Version Changes
+## v1.02
+
+- Keep the FNIRSI HS-02 plus and minus button backlights on.
+
 ## v1.01
 
 - Improve KXTJ3 accelerometer motion sensitivity on the FNIRSI HS-02.
