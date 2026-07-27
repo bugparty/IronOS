@@ -22,8 +22,11 @@
 // rendering to the buffer
 uint8_t *LCD::stripPointers[LCD_HEIGHT / 8]; // Pointers to the strips to allow for buffer having extra content
 
-alignas(uint32_t) uint8_t LCD::screenBuffer[LCD_SCREEN_BUF_SIZE_2BPP]; // The data buffer (shared mono/colour, see LCD.hpp)
-alignas(uint32_t) uint8_t LCD::secondFrameBuffer[LCD_SCREEN_BUF_SIZE];
+alignas(uint32_t) uint8_t LCD::screenBuffer[LCD_SCREEN_BUF_SIZE_2BPP];
+alignas(uint32_t) uint8_t LCD::colorSecondFrameBuffer[LCD_SCREEN_BUF_SIZE_2BPP];
+uint8_t *LCD::colorPrimaryBuffer   = LCD::screenBuffer;
+uint8_t *LCD::colorSecondaryBuffer = LCD::colorSecondFrameBuffer;
+uint8_t *LCD::activeColorBuffer    = LCD::screenBuffer;
 uint32_t LCD::displayChecksum;
 bool     LCD::colorModeActive = false;
 uint8_t  LCD::loopCounter;
@@ -151,6 +154,20 @@ void LCD::setFramebuffer(uint8_t *buffer) {
   }
 }
 
+void LCD::setColorMode(bool active) {
+  if (colorModeActive == active) {
+    return;
+  }
+
+  colorModeActive = active;
+  if (active) {
+    activeColorBuffer = colorPrimaryBuffer;
+  } else {
+    setFramebuffer(screenBuffer);
+  }
+  displayChecksum = ~0U;
+}
+
 /**
  * Plays a transition animation between two framebuffers.
  *
@@ -160,7 +177,7 @@ void LCD::setFramebuffer(uint8_t *buffer) {
 bool LCD::scrollHorizontal(const bool dirForward, uint16_t progress, uint8_t offset) {
   uint8_t *stripBackPointers[LCD_HEIGHT / 8];
   for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
-    stripBackPointers[i] = &secondFrameBuffer[i * LCD_WIDTH];
+    stripBackPointers[i] = &monoSecondFrameBuffer()[i * LCD_WIDTH];
   }
 
   // When forward, current contents move to the left out.
@@ -187,11 +204,12 @@ bool LCD::scrollHorizontal(const bool dirForward, uint16_t progress, uint8_t off
 }
 
 void LCD::useSecondaryFramebuffer(bool useSecondary) {
-  if (useSecondary) {
-    setFramebuffer(secondFrameBuffer);
+  if (colorModeActive) {
+    activeColorBuffer = useSecondary ? colorSecondaryBuffer : colorPrimaryBuffer;
   } else {
-    setFramebuffer(screenBuffer);
+    setFramebuffer(useSecondary ? monoSecondFrameBuffer() : screenBuffer);
   }
+  displayChecksum = ~0U;
 }
 
 /**
@@ -205,7 +223,7 @@ bool LCD::scrollDown(uint8_t pos) {
   static_assert(LCD_WIDTH % 4 == 0, "LCD_WIDTH must be multiple of 4");
   static_assert(LCD_HEIGHT == 80, "LCD_HEIGHT must be 80");
   uint32_t *const pA = (uint32_t *)screenBuffer;
-  uint32_t *const pB = (uint32_t *)secondFrameBuffer;
+  uint32_t *const pB = (uint32_t *)monoSecondFrameBuffer();
   // For each line, we shuffle all bits up a row
   for (uint8_t xPos = 0; xPos < LCD_WIDTH / 4; xPos++) {
     const uint16_t Strip01Pos = xPos;
@@ -254,7 +272,7 @@ bool LCD::scrollUp(uint8_t pos) {
   static_assert(LCD_WIDTH % 4 == 0, "LCD_WIDTH must be multiple of 4");
   static_assert(LCD_HEIGHT == 80, "LCD_HEIGHT must be 80");
   uint32_t *const pA = (uint32_t *)screenBuffer;
-  uint32_t *const pB = (uint32_t *)secondFrameBuffer;
+  uint32_t *const pB = (uint32_t *)monoSecondFrameBuffer();
   // For each line, we shuffle all bits down a row
   for (uint8_t xPos = 0; xPos < LCD_WIDTH / 4; xPos++) {
     const uint16_t Strip01Pos = xPos;
@@ -311,10 +329,18 @@ void LCD::setInverse(bool inverse) {
   FRToSSPI::sendCmdChain(&cmdInvSet, 1);
 }
 
-// Mono-only: secondFrameBuffer (scroll-transition backing) is always 1bpp/LCD_SCREEN_BUF_SIZE,
-// even though screenBuffer itself is now sized for the wider 2bpp colour mode -- must NOT use
-// sizeof(screenBuffer) here, that would over-read secondFrameBuffer.
-void LCD::flushSecondBuffer(void) { memcpy(screenBuffer, secondFrameBuffer, LCD_SCREEN_BUF_SIZE); }
+void LCD::flushSecondBuffer(void) {
+  if (colorModeActive) {
+    uint8_t *previousPrimary = colorPrimaryBuffer;
+    colorPrimaryBuffer       = colorSecondaryBuffer;
+    colorSecondaryBuffer     = previousPrimary;
+    activeColorBuffer        = colorPrimaryBuffer;
+  } else {
+    memcpy(screenBuffer, monoSecondFrameBuffer(), LCD_SCREEN_BUF_SIZE);
+    setFramebuffer(screenBuffer);
+  }
+  displayChecksum = ~0U;
+}
 
 // Draw an area, but y must be aligned on 0/8 offset
 void LCD::drawArea(int16_t x, int8_t y, uint8_t width, uint8_t height, const uint8_t *ptr) {
@@ -427,7 +453,7 @@ void LCD::refreshColor() {
   setDrawingWindow(0, 0, LCD_WIDTH, LCD_HEIGHT);
   for (uint16_t x = 0; x < LCD_WIDTH; x++) {
     for (uint16_t y = 0; y < LCD_HEIGHT; y++) {
-      uint8_t  packed   = screenBuffer[y * (LCD_WIDTH / 4) + (x / 4)];
+      uint8_t  packed   = activeColorBuffer[y * (LCD_WIDTH / 4) + (x / 4)];
       uint8_t  index    = (packed >> ((x % 4) * 2)) & 0x3;
       uint16_t rgb      = (uint16_t)~activePalette2bpp[index]; // INVON: send the inverse of the true colour
       colRGB[y * 2]     = (uint8_t)(rgb >> 8);
