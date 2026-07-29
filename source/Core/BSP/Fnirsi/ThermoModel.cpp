@@ -36,6 +36,31 @@ constexpr uint32_t stockCalBias140       = 0x7F21;
 constexpr uint32_t stockCalBias240       = 0x7E77;
 constexpr uint32_t stockCalBias340       = 0x7DC4;
 
+uint32_t interpolateFallbackTempCx10(uint32_t tipuV, uint32_t loweruV, uint32_t lowerTempCx10, uint32_t upperuV, uint32_t upperTempCx10) {
+  return lowerTempCx10 + ((tipuV - loweruV) * (upperTempCx10 - lowerTempCx10)) / (upperuV - loweruV);
+}
+
+uint32_t fallbackTipTempCx10(uint32_t tipuV) {
+  // Absolute tip temperatures measured on one HS-02A without usable factory
+  // calibration. The 0uV point is the midpoint of a 28-33C cold-tip reading.
+  if (tipuV <= 5400) {
+    return interpolateFallbackTempCx10(tipuV, 0, 305, 5400, 2230);
+  }
+  if (tipuV <= 6680) {
+    return interpolateFallbackTempCx10(tipuV, 5400, 2230, 6680, 2730);
+  }
+  if (tipuV <= 8370) {
+    return interpolateFallbackTempCx10(tipuV, 6680, 2730, 8370, 3500);
+  }
+  if (tipuV <= 10540) {
+    return interpolateFallbackTempCx10(tipuV, 8370, 3500, 10540, 4000);
+  }
+  if (tipuV <= 12090) {
+    return interpolateFallbackTempCx10(tipuV, 10540, 4000, 12090, 4500);
+  }
+  return interpolateFallbackTempCx10(tipuV, 12090, 4500, 13640, 5000);
+}
+
 bool     factoryCalChecked = false;
 bool     factoryCalValid   = false;
 uint32_t adcCount140       = 0; // Raw 12-bit ADC counts at the three factory reference points
@@ -112,8 +137,10 @@ TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
     return (tempX10 > 250) ? (tempX10 - 250) : 0;
   }
 
-  // Fallback: measured ~26uV per 1C on an HS-02A using solder alloy melting points
-  // as references (Sn45/Pb55: solidus 183C, liquidus ~227C). The originally assumed
-  // 21uV/C over-reported the tip temperature by ~23%.
-  return (10 * tipuVDelta) / 26;
+  // The MCU die sensor remains around 41-43C and is not the connector's cold
+  // junction temperature. Use the measured absolute-temperature curve, then
+  // cancel the handle value which the generic caller adds back.
+  const uint32_t handleTempCx10 = getHandleTemperature(0);
+  const uint32_t tipTempCx10    = fallbackTipTempCx10(tipuVDelta);
+  return (tipTempCx10 > handleTempCx10) ? tipTempCx10 - handleTempCx10 : 0;
 }

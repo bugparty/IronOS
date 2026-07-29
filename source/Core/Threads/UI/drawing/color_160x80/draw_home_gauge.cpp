@@ -11,11 +11,14 @@ namespace {
 // The 2bpp framebuffer stores semantic colour indices.  Each page supplies its
 // own four-colour mapping, so the Wash UI stays legible without gradients.
 constexpr uint8_t  kBg = 0, kInk = 1, kAccent = 2, kMuted = 3;
-constexpr uint8_t  kScreenWidth      = 160;
-constexpr uint16_t kIdlePalette[4]   = {0x0862, 0xF77C, 0x45B8, 0x536A};
-constexpr uint16_t kSolderPalette[4] = {0x28A0, 0xF77C, 0xFBC5, 0x9B48};
-constexpr uint16_t kBoostPalette[4]  = {0x30C0, 0xF77C, 0xFBC5, 0xB344};
-constexpr uint16_t kSleepPalette[4]  = {0x0924, 0xF77C, 0x45B8, 0x4B8F};
+constexpr uint8_t  kScreenWidth                           = 160;
+constexpr uint16_t kIdlePalette[4]                        = {0x0862, 0xF77C, 0x45B8, 0x536A};
+constexpr uint16_t kSolderPalette[4]                      = {0x28A0, 0xF77C, 0xFBC5, 0x9B48};
+constexpr uint16_t kBoostPalette[4]                       = {0x30C0, 0xF77C, 0xFBC5, 0xB344};
+constexpr uint16_t kSleepPalette[4]                       = {0x0924, 0xF77C, 0x45B8, 0x4B8F};
+constexpr uint8_t  kWashGlyphI[Hs02WashFont::kGlyphBytes] = {4, 4, 0xFC, 4, 4, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0};
+constexpr uint8_t  kWashGlyphU[Hs02WashFont::kGlyphBytes] = {0xFC, 0, 0, 0, 0xFC, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0};
+constexpr uint8_t  kWashCustomGlyphAdvance                = 6;
 
 void drawTemperatureNumber(TemperatureType_t temperature, uint8_t x, uint8_t y, uint8_t color) {
   uint8_t digits[3] = {};
@@ -206,8 +209,26 @@ void drawWashTopVoltage() {
   drawWashTenths(voltage, cursor, 5, kMuted, 'V');
 }
 
-void drawWashHeating(TemperatureType_t current, TemperatureType_t target, uint32_t x10Watt, bool boostModeOn) {
+void drawWashTipMicrovolts() {
+  const uint32_t tipMicrovolts = TipThermoModel::convertTipRawADCTouV(getTipRawTemp(0));
+  const uint8_t  width         = measureWashText("T") + kWashCustomGlyphAdvance + measureWashText("P ") + measureWashUnsigned(tipMicrovolts) + kWashCustomGlyphAdvance + measureWashText("V");
+  const uint8_t  x             = kScreenWidth - 6 - width;
+  uint8_t        cursor        = drawWashText("T", x, 5, kMuted);
+  Display::drawBitmapColor(kWashGlyphI, Hs02WashFont::kGlyphWidth, Hs02WashFont::kGlyphHeight, cursor, 5, kMuted);
+  cursor += kWashCustomGlyphAdvance;
+  cursor = drawWashText("P ", cursor, 5, kMuted);
+  cursor = drawWashUnsigned(tipMicrovolts, cursor, 5, kMuted);
+  Display::drawBitmapColor(kWashGlyphU, Hs02WashFont::kGlyphWidth, Hs02WashFont::kGlyphHeight, cursor, 5, kMuted);
+  drawWashText("V", cursor + kWashCustomGlyphAdvance, 5, kMuted);
+}
+
+void drawWashTopTelemetry() {
   drawWashTopVoltage();
+  drawWashTipMicrovolts();
+}
+
+void drawWashHeating(TemperatureType_t current, TemperatureType_t target, uint32_t x10Watt, bool boostModeOn) {
+  drawWashTopTelemetry();
   drawTemperatureNumber(current, 80 - (3 * Hs02InterSemiBoldFont::kDigitWidth) / 2, 18, kInk);
 
   if (boostModeOn) {
@@ -229,7 +250,7 @@ void ui_draw_home_gauge_idle(TemperatureType_t tipTemp) {
   if (isTipDisconnected()) {
     return;
   }
-  drawWashTopVoltage();
+  drawWashTopTelemetry();
   drawTemperatureNumber(tipTemp, 80 - (3 * Hs02InterSemiBoldFont::kDigitWidth) / 2, 18, kInk);
 
   const TemperatureType_t target = getSettingValue(SettingsOptions::SolderingTemp);

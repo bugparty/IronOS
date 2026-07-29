@@ -29,6 +29,11 @@ volatile TemperatureType_t currentTempTargetDegC       = 0; // Current temperatu
 int32_t                    powerSupplyWattageLimit     = 0;
 uint8_t                    heaterThermalRunawayCounter = 0;
 
+#ifdef MODEL_HS02
+constexpr TemperatureType_t hs02HighTempRampStartDegC = 350;
+constexpr TickType_t        hs02HighTempRampStepTicks = TICKS_SECOND / 5; // 1C per step, 5C/s
+#endif
+
 static int32_t getPIDResultX10Watts(TemperatureType_t set_point, TemperatureType_t current_value);
 static void    detectThermalRunaway(const TemperatureType_t currentTipTempInC, const uint32_t x10WattsOut);
 static void    setOutputx10WattsViaFilters(int32_t x10Watts);
@@ -73,6 +78,10 @@ void startPIDTask(void const *argument __unused) {
 
   int32_t    x10WattsOut             = 0;
   TickType_t lastThermalRunawayDecay = xTaskGetTickCount();
+#ifdef MODEL_HS02
+  TemperatureType_t hs02RampedTargetDegC = 0;
+  TickType_t        hs02LastRampTick     = xTaskGetTickCount();
+#endif
 
   for (;;) {
     x10WattsOut = 0;
@@ -91,6 +100,25 @@ void startPIDTask(void const *argument __unused) {
       if (PIDTempTarget > TipThermoModel::getTipMaxInC()) {
         PIDTempTarget = TipThermoModel::getTipMaxInC();
       }
+#ifdef MODEL_HS02
+      const TickType_t now = xTaskGetTickCount();
+      if (PIDTempTarget <= hs02HighTempRampStartDegC || PIDTempTarget < hs02RampedTargetDegC) {
+        hs02RampedTargetDegC = PIDTempTarget;
+        hs02LastRampTick     = now;
+      } else {
+        if (hs02RampedTargetDegC < hs02HighTempRampStartDegC) {
+          hs02RampedTargetDegC = hs02HighTempRampStartDegC;
+          hs02LastRampTick     = now;
+        }
+        const TickType_t rampSteps = (now - hs02LastRampTick) / hs02HighTempRampStepTicks;
+        if (rampSteps > 0) {
+          const TemperatureType_t nextTarget = hs02RampedTargetDegC + (TemperatureType_t)rampSteps;
+          hs02RampedTargetDegC               = (nextTarget < PIDTempTarget) ? nextTarget : PIDTempTarget;
+          hs02LastRampTick += rampSteps * hs02HighTempRampStepTicks;
+        }
+        PIDTempTarget = hs02RampedTargetDegC;
+      }
+#endif
 
       x10WattsOut = getPIDResultX10Watts(PIDTempTarget, currentTipTempInCx10);
       detectThermalRunaway(currentTipTempInCx10 / 10, PIDTempTarget > 0 ? x10WattsOut : 0);

@@ -101,8 +101,8 @@ void ui_draw_debug_menu(const uint8_t item_number) {
     // Fnirsi BSP: three stock calibration ADC counts (140C/240C/340C reference
     // points) decoded from the stock settings page; see Core/BSP/Fnirsi/ThermoModel.cpp.
     // "In Use" means the piecewise curve built from them drives the tip readout;
-    // "Unused 26uV/C" means they were absent/neutral placeholders and the measured
-    // constant-slope fallback is active instead.
+    // "Custom Curve" means they were absent/neutral placeholders and the measured
+    // absolute-temperature fallback is active instead.
     extern bool hs02GetFactoryTipCal(uint32_t &a140, uint32_t &a240, uint32_t &a340);
     uint32_t    a140, a240, a340;
     const bool  calValid = hs02GetFactoryTipCal(a140, a240, a340);
