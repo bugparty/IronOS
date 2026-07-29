@@ -1,5 +1,5 @@
-[![Total Downloads](https://img.shields.io/github/downloads/ok2cm/IronOS/total)](https://github.com/ok2cm/IronOS)
-[![Latest Release](https://img.shields.io/github/v/release/ok2cm/IronOS)](https://github.com/ok2cm/IronOS/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/bugparty/IronOS/total)](https://github.com/bugparty/IronOS)
+[![Latest Release](https://img.shields.io/github/v/release/bugparty/IronOS)](https://github.com/bugparty/IronOS/releases/latest)
 
 # IronOS - FNIRSI HS-02 fork
 
