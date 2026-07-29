@@ -20,9 +20,9 @@ OperatingMode handleHomeButtons(const ButtonState buttons, guiContext *cxt) {
 
   case BUTTON_B_LONG:
 #if defined(LCD_160x80)
-    // The colour gauge screen and the mono menu system share one physical LCD buffer (see
-    // LCD.hpp); a slide transition would need to render the far side into secondFrameBuffer,
-    // which stays 1bpp-only, so every crossing between the two uses a hard cut.
+    // The colour gauge screen and the mono menu system share LCD buffer storage (see LCD.hpp).
+    // Their slide transition routines interpret frames differently, so every crossing between
+    // the two representations uses a hard cut.
     cxt->transitionMode = TransitionAnimation::None;
 #else
     cxt->transitionMode = TransitionAnimation::Down;

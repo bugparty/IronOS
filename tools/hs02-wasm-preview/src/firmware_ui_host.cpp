@@ -23,7 +23,7 @@ using TickType_t = uint32_t;
 constexpr TickType_t TICKS_SECOND = 1000;
 constexpr TickType_t TICKS_MIN    = 60 * TICKS_SECOND;
 TickType_t lastButtonTime = 0, lastMovementTime = 0;
-struct State { uint16_t tip = 428, target = 430, boost = 480, wattsX10 = 425, voltsX10 = 200; uint8_t source = 0; bool disconnected = false; } state;
+struct State { uint16_t tip = 428, target = 430, boost = 480, wattsX10 = 425, voltsX10 = 200, tipMicrovolts = 14500; uint8_t source = 0; bool disconnected = false; } state;
 void pixel(uint8_t x, uint8_t y, uint8_t color) {
   if (x >= kWidth || y >= kHeight) return;
   uint16_t i = y * (kWidth / 4) + x / 4; uint8_t shift = (x % 4) * 2;
@@ -56,7 +56,11 @@ uint16_t getSettingValue(const enum SettingsOptions option) {
   }
 }
 bool isTipDisconnected() { return state.disconnected; }
-namespace TipThermoModel { TemperatureType_t getTipInC() { return state.tip; } }
+uint16_t getTipRawTemp(uint8_t) { return state.tipMicrovolts; }
+namespace TipThermoModel {
+TemperatureType_t getTipInC() { return state.tip; }
+uint32_t convertTipRawADCTouV(uint16_t rawADC, bool) { return rawADC; }
+}
 WasmWattHistory x10WattHistory;
 uint32_t WasmWattHistory::average() const { return state.wattsX10; }
 uint32_t getInputVoltageX10(uint16_t, uint8_t) { return state.voltsX10; }
@@ -95,8 +99,9 @@ void ui_draw_home_gauge_soldering(bool boostModeOn);
 
 extern "C" {
 void hs02_ui_set_state(uint16_t tip, uint16_t target, uint16_t boost, uint16_t wattsX10, uint16_t voltsX10, uint8_t source, uint8_t disconnected) {
-  state = {tip, target, boost, wattsX10, voltsX10, source, disconnected != 0};
+  state = {tip, target, boost, wattsX10, voltsX10, state.tipMicrovolts, source, disconnected != 0};
 }
+void hs02_ui_set_tip_microvolts(uint16_t tipMicrovolts) { state.tipMicrovolts = tipMicrovolts; }
 void hs02_ui_render(uint8_t mode) {
   Display::clearColor(); if (mode == 0) ui_draw_home_gauge_idle(state.tip); else if (mode == 1) ui_draw_home_gauge_soldering(false); else if (mode == 2) ui_draw_home_gauge_soldering(true); else ui_draw_home_gauge_sleep(state.tip);
 }
