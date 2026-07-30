@@ -327,7 +327,11 @@ CPUFLAGS=-mcpu=cortex-m4  \
 				 -mfpu=fpv4-sp-d16 \
          -mfloat-abi=hard
 
-CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py bin
+# The HS-02A bootloader validates the image magic against "bin", the HS-02B
+# against "BIN" (confirmed at 0x08003FBC in both stock bootloaders).
+# Build a B image with:  make model=HS02 hs02_magic=BIN
+hs02_magic ?= bin
+CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py $(hs02_magic)
 
 SMALL_FONT=default_12x16
 LARGE_FONT=default_24x32
