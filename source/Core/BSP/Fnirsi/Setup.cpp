@@ -212,9 +212,9 @@ static void gpioInit(void) {
 #endif
 
   // Temporary manual configs
-  GPIO_ResetBits(USB_CTL_Port, USB_CTL_Pin); // Route USB to CH224 and request 20V
-  GPIO_ResetBits(CH224_CFG_Port, CH224_CFG3_Pin);
-  GPIO_SetBits(CH224_CFG_Port, CH224_CFG2_Pin);
+  GPIO_ResetBits(USB_CTL_Port, USB_CTL_Pin); // Route USB to CH224
+  // CH224 CFG pins are left at their post-GPIO_DeInit() reset state (both low) here;
+  // negotiateChargerCFG() drives them once the ADC is up and running.
 }
 
 static void adcInit(void) {
@@ -291,6 +291,78 @@ static void dmaInit(void) {
   DMA_Init(DMA_CH1, &DMA_InitStructure);
   DMA_RequestRemap(DMA_REMAP_ADC1, DMA, DMA_CH1, ENABLE);
   DMA_EnableChannel(DMA_CH1, ENABLE);
+}
+
+// Busy-wait delay_ms() doesn't pet the watchdog (see its TODO); iwdgInit() reloads a count of
+// only 100 at a DIV256 prescale, so anything waiting longer than roughly half a second needs to
+// kick it in between or the sweep below resets the MCU mid-negotiation.
+static void delayWithWatchdog(uint16_t ms) {
+  while (ms > 50) {
+    delay_ms(50);
+    resetWatchdog();
+    ms -= 50;
+  }
+  delay_ms(ms);
+  resetWatchdog();
+}
+
+// The CH224 needs time to renegotiate with the source after its CFG pins change; toggling them
+// faster than this leaves it mid-handshake (see git history on this file: a prior attempt at
+// switching CFG2/CFG3 back-to-back was reverted as "Too fast, unable to renegotiate").
+// Untested on real PD sources with contracts slower than this to settle -- bench-verify on
+// hardware and raise if a charger is seen landing on a lower tier than it should.
+static const uint16_t CFG_NEGOTIATE_SETTLE_MS = 500;
+
+static void applyChargerCFG(bool cfg2High, bool cfg3High) {
+  if (cfg2High) {
+    GPIO_SetBits(CH224_CFG_Port, CH224_CFG2_Pin);
+  } else {
+    GPIO_ResetBits(CH224_CFG_Port, CH224_CFG2_Pin);
+  }
+  if (cfg3High) {
+    GPIO_SetBits(CH224_CFG_Port, CH224_CFG3_Pin);
+  } else {
+    GPIO_ResetBits(CH224_CFG_Port, CH224_CFG3_Pin);
+  }
+}
+
+// Sample Vin (in x10 volts) enough times to fully turn over the ADC_FILTER_LEN-deep moving
+// average in BSP.cpp's getADCVin(), so the reading reflects the CFG state we just applied
+// rather than a leftover blend from the previous one.
+static uint16_t measureVinX10(void) {
+  uint16_t reading = 0;
+  for (uint8_t i = 0; i < ADC_FILTER_LEN + 2; i++) {
+    reading = getInputVoltageX10(VOLTAGE_DIV, 1);
+    delayWithWatchdog(5);
+  }
+  return reading;
+}
+
+// Which physical voltage each CH224 CFG2/CFG3 combination requests isn't documented for this
+// board's simplified 2-pin wiring (WCH's CH224K datasheet covers its 3-pin tri-state
+// interface, not this reduced 2-pin one), and it can vary by which PDOs the connected source
+// actually advertises. Rather than assume a truth table, sweep all four reachable states,
+// measure what the source actually delivers on each, and keep whichever yields the most Vin.
+// This runs before tim1Init()/tim4Init() start the heater PWM, so it needs no heat.
+static void negotiateChargerCFG(void) {
+  static const bool candidateCfg2[4] = {true, false, false, true};
+  static const bool candidateCfg3[4] = {false, false, true, true};
+  // Index 0 (CFG2=1, CFG3=0) is the combination this file previously hardcoded as "request
+  // 20V"; try it first so the common case (a full-power PD charger) settles fastest.
+
+  uint8_t  bestIndex   = 0;
+  uint16_t bestReading = 0;
+  for (uint8_t i = 0; i < 4; i++) {
+    applyChargerCFG(candidateCfg2[i], candidateCfg3[i]);
+    delayWithWatchdog(CFG_NEGOTIATE_SETTLE_MS);
+    uint16_t reading = measureVinX10();
+    if (reading > bestReading) {
+      bestReading = reading;
+      bestIndex   = i;
+    }
+  }
+  applyChargerCFG(candidateCfg2[bestIndex], candidateCfg3[bestIndex]);
+  delayWithWatchdog(CFG_NEGOTIATE_SETTLE_MS); // let the winning tier settle before anything else samples Vin
 }
 
 static void tim1Init(void) {
@@ -419,6 +491,8 @@ void hwInit(void) {
 
   dmaInit();
   adcInit();
+
+  negotiateChargerCFG();
 
   tim1Init();
   tim2Init();

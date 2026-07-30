@@ -197,6 +197,24 @@ OperatingMode gui_solderingMode(const ButtonState buttons, guiContext *cxt) {
     return OperatingMode::Sleeping;
   }
 
+  // A pulled tip pegs the raw ADC reading, which detectThermalRunaway() (PIDThread.cpp) also
+  // treats as a possible failed heater/sensor fault -- the two are indistinguishable from the
+  // raw reading alone. isTipDisconnected() is the authoritative check for the common, benign
+  // case, so run it ahead of the runaway counter: OperatingMode::ThermalRunaway has no
+  // color_160x80 draw implementation (GUIThread.cpp bails straight to HomeScreen without
+  // drawing anything), so falling through to it here would flash a black frame instead of the
+  // normal "tip disconnected" HomeScreen.
+  if (isTipDisconnected()) {
+    currentTempTargetDegC       = 0; // heater control off
+    heaterThermalRunawayCounter = 0;
+#if defined(LCD_160x80)
+    cxt->transitionMode = TransitionAnimation::None;
+#else
+    cxt->transitionMode = detailedView ? TransitionAnimation::None : TransitionAnimation::Right;
+#endif
+    return OperatingMode::HomeScreen;
+  }
+
   if (heaterThermalRunawayCounter > 8) {
     currentTempTargetDegC       = 0; // heater control off
     heaterThermalRunawayCounter = 0;

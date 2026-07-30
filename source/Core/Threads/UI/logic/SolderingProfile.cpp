@@ -159,6 +159,16 @@ OperatingMode gui_solderingProfileMode(const ButtonState buttons, guiContext *cx
     setBuzzer(false);
     return OperatingMode::HomeScreen;
   }
+  // See the matching check in Soldering.cpp: a disconnected tip pegs the raw ADC reading,
+  // which the runaway detector also treats as a possible fault. Check isTipDisconnected()
+  // first so a pulled tip lands on the normal HomeScreen instead of the ThermalRunaway
+  // stub, which has no color_160x80 draw implementation and would flash a black frame.
+  if (isTipDisconnected()) {
+    currentTempTargetDegC       = 0; // heater control off
+    heaterThermalRunawayCounter = 0;
+    setBuzzer(false);
+    return OperatingMode::HomeScreen;
+  }
   if (heaterThermalRunawayCounter > 8) {
     currentTempTargetDegC       = 0; // heater control off
     heaterThermalRunawayCounter = 0;
