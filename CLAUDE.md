@@ -9,9 +9,9 @@ to work on it. General IronOS docs live in `Documentation/`.
 
 - One-shot build: `./build-hs02.sh` (repo root). `--clean` to rebuild, `--flash <MSD mount>`
   to build + flash. It checks the toolchain and points at the output.
-- Manual: `cd source && make model=HS02 -j$(nproc)`. Output to flash is
-  `source/Hexfile/HS02_EN_firmware.bin` (carries the 16-byte `bin` header the MSD bootloader
-  needs — plain `HS02_EN.bin` will NOT flash).
+- Manual: `cd source && make model=HS02 -j$(nproc)` (or `model=HS02B` — see the A/B section
+  below). Output to flash is `source/Hexfile/$(model)_EN_firmware.bin` (carries the 16-byte
+  magic header the MSD bootloader needs — plain `HS02_EN.bin` will NOT flash).
 - Toolchain (Fedora): `arm-none-eabi-gcc-cs arm-none-eabi-gcc-cs-c++ arm-none-eabi-newlib
   arm-none-eabi-binutils-cs` + `pip install bdflib` (translation/font generation).
 - **Flashing quirk:** the FNIRSI MSD bootloader mishandles USB write caching. On Linux you
@@ -63,10 +63,45 @@ to work on it. General IronOS docs live in `Documentation/`.
   - Neither has a fallback path for the other case. Stock images match: `APP_HS_02A_*.bin`
     begin `62 69 6e 00`, `APP_HS_02B_V1.8.bin` begins `42 49 4e 00`.
 
-  `source/Makefile` (`CUSTOM_FORMAT_CMD`, ~line 330) passes **`bin`**, so our build only
-  flashes on an **HS-02A**. To produce an HS-02B-flashable image, change that argument to
-  `BIN`. (Flashing is only half the story — the 02B's tip is lower-power and uses a
-  completely different PID gain set, so it would still need retuning.)
+  This is handled automatically: `source/Makefile` picks the magic from `$(model)`
+  (`CUSTOM_FORMAT_CMD` in the Fnirsi block), so `model=HS02` emits `bin` and `model=HS02B`
+  emits `BIN`. You cannot cross-flash by accident — the wrong magic is silently rejected
+  by the bootloader.
+
+## HS-02A vs HS-02B build targets
+
+Same PCB, different tip: **HS-02A takes F245 cartridges, HS-02B takes F210** (FNIRSI's own
+designations, ≈ JBC C245/C210 form factors; the two tips are NOT interchangeable). Confirmed
+same board by diffing `APP_HS_02A_V1.8` against `APP_HS_02B_V1.8` (same version, one day
+apart): peripheral reference counts match item for item (GPIOA 17/17, GPIOB 8/8, RCC 11/11,
+TIM3 3/3, TIM4 3/3). So the whole BSP transfers unchanged; only tip-dependent parameters vary.
+
+- `make model=HS02` → HS-02A (name kept for backwards compatibility) → `HS02_EN_firmware.bin`
+- `make model=HS02B` → HS-02B → `HS02B_EN_firmware.bin`
+- `MODEL=HS02B ./build-hs02.sh` for the one-shot script.
+- **`MODEL_HS02` is the FAMILY define, set for BOTH variants** — every existing
+  `#ifdef MODEL_HS02` (`Pins.h`, `I2CBB1.cpp`, `Font.h`, `MOVThread.cpp`, `PIDThread.cpp`)
+  is a shared-PCB concern and applies to both. `MODEL_HS02A` / `MODEL_HS02B` select only
+  the tip parameters in `configuration.h`, with an `#error` enforcing exactly one.
+
+⚠️ **HS-02B is UNVALIDATED — nobody on this fork owns the hardware.** Its parameters are
+deliberately conservative guesses, not tuned values: KP 40→20, KI 700→150, KD 8000→3000,
+integral clamp 30→10, power 100 W→65 W, max temp 450→400 °C. Rationale: F210 is the smaller
+cartridge, so less thermal mass → higher plant gain → controller gains must come down, which
+is also the safe direction (an under-tuned PID is sluggish rather than overshooting).
+`TIP_RESISTANCE` stays 25: F210's real value is unpublished (checked FNIRSI docs, manuals,
+reviews, IronOS discussion #1935) and is bounded to ≤4 Ω by the 100 W-at-20 V rating. It
+matters less than it looks — R only scales watts→PWM, giving
+`P_delivered = P_requested × (R_assumed / R_true)`, a pure gain on the controller output that
+is mathematically indistinguishable from scaling KP/KI/KD together. **Retuning absorbs any
+error in it, so do not "correct" it in isolation** — that would silently rescale loop gain.
+
+**Build hygiene gotcha (fixed, but know why):** `Core/Gen/` holds generated sources
+(`macros.txt`, `Translation.*.cpp`) derived from the *model's* `configuration.h`, but unlike
+`Objects/` it is shared across models, and `macros.txt` used to depend only on `Makefile`.
+Building B after A therefore linked A's translation data into B's image. Now stamped with the
+model name so switching regenerates. This affected any two models in one tree (e.g. TS100 then
+TS80), so it is upstream-worthy, not Fnirsi-specific.
 
 ## Temperature control & calibration (branch `fix/hs02-pid-tuning`)
 
