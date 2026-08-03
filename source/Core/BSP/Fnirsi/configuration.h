@@ -136,9 +136,12 @@
 // Vin_max = (3.3*(r1+r2))/(r2)
 // vdiv = (32768*4)/(vin_max*10)
 
-// #if defined(MODEL_HS02A) + defined(MODEL_HS02B) > 1
-// #error "Multiple models defined!"
-// #endif
+// Exactly one variant must be selected. MODEL_HS02 is the shared-PCB family define and is
+// set for BOTH variants; MODEL_HS02A / MODEL_HS02B select only the tip-dependent parameters
+// further down. Both come from the Makefile's ALL_FNIRSI_MODELS block.
+#if defined(MODEL_HS02A) + defined(MODEL_HS02B) != 1
+#error "Exactly one of MODEL_HS02A / MODEL_HS02B must be defined!"
+#endif
 
 #define I2C_SOFT_BUS_1
 #define ACCEL_I2CBB1
@@ -146,8 +149,16 @@
 
 #define MIN_CALIBRATION_OFFSET 100 // Min value for calibration
 #define SOLDERING_TEMP         320 // Default soldering temp is 320.0 °C
+#ifdef MODEL_HS02B
+// UNVALIDATED: the temperature model below is fitted to the HS-02A's F245 tip. Until the
+// same fit is done against a real thermometer on F210, the displayed temperature may be
+// wrong in either direction, so cap the ceiling lower to bound the damage.
+#define MAX_TEMP_C             400 // Max soldering temp selectable °C
+#define MAX_TEMP_F             750 // Max soldering temp selectable °F
+#else
 #define MAX_TEMP_C             450 // Max soldering temp selectable °C
 #define MAX_TEMP_F             850 // Max soldering temp selectable °F
+#endif
 #define MIN_TEMP_C             10  // Min soldering temp selectable °C
 #define MIN_TEMP_F             50  // Min soldering temp selectable °F
 #define MIN_BOOST_TEMP_C       250 // The min settable temp for boost mode °C
@@ -158,14 +169,23 @@
 
 #define VOLTAGE_DIV        540 // 540 - Default divider from schematic
 #define CALIBRATION_OFFSET 900 // 900 - Default adc offset in uV
-#define POWER_LIMIT        60  // 60 watts default limit
 
 #define USB_PD_VMAX        20 // Maximum voltage for PD to negotiate
-#define MAX_POWER_LIMIT    100
 #define POWER_LIMIT_STEPS  5
 #define OP_AMP_GAIN_STAGE  57
 
+#ifdef MODEL_HS02B
+// F210 is the small-cartridge class (3.2mm shank); FNIRSI markets both variants at 100 W,
+// but that is the electronics rating -- the cartridge itself handles less. De-rated here
+// because nothing about this build has been validated on hardware. Raise once measured.
+#define POWER_LIMIT              40  // 40 watts default limit
+#define MAX_POWER_LIMIT          65
+#define HARDWARE_MAX_WATTAGE_X10 650 // 65W
+#else
+#define POWER_LIMIT              60  // 60 watts default limit
+#define MAX_POWER_LIMIT          100
 #define HARDWARE_MAX_WATTAGE_X10 1000    // 100W
+#endif
 
 // #define OLED_I2CBB1    0
 // #define TIPTYPE_T12    0 // Can manually pick a T12 tip
@@ -182,15 +202,49 @@
 
 /// Use PID Control
 #define TIP_CONTROL_PID
+#ifdef MODEL_HS02B
+// ---------------------------------------------------------------------------------------
+// HS-02B (F210 tip) -- DELIBERATELY DETUNED. These are NOT tuned values; they are a
+// conservative starting point for hardware nobody on this fork owns yet.
+//
+// Direction of the guesses: F210 is a physically smaller cartridge than the A's F245, so
+// it has less thermal mass -- the plant produces more degrees per watt, i.e. a HIGHER
+// plant gain. To keep the same stability margin the controller gains must come DOWN,
+// which is also the safe direction: an under-tuned PID is sluggish, not overshooting.
+//   KP  40 -> 20    halved
+//   KI  700 -> 150  700 was empirically fitted to the A under heavy load (upstream
+//                   Pinecilv2 reference is 6). Slower droop closure, far less windup risk.
+//   KD  8000 -> 3000  8000 compensates the F245's high inertia; the lighter F210 needs
+//                   less damping, and excess KD just amplifies ADC noise.
+//   INTEGRAL_LIMIT_SCALE 30 -> 10  (a multiple of max_output, so it already self-scales
+//                   with the lower wattage cap; 10 on top of that is belt-and-braces)
+// Retune against real telemetry before trusting any of this.
+#define TIP_PID_KP              20
+#define TIP_PID_KI              150
+#define TIP_PID_KD              3000
+#define TIP_PID_INTEGRAL_LIMIT_SCALE 10
+#else
 #define TIP_PID_KP              40   // Matches proven Pinecilv2 value; higher drive under load
 #define TIP_PID_KI              700  // Integral climb rate is proportional to error; 700 closes a small (2-3C) load-induced droop in ~10s. Far above the Pinecilv2 reference value (6) -- this is empirically tuned, not derived; watch for slow hunting, especially as the integral bleeds off after a heavy solder joint
 #define TIP_PID_KD              8000 // C245 has a surprisingly high inertia, needs lot of dampening
 #define TIP_PID_INTEGRAL_LIMIT_SCALE 30 // Default 5 caps integral at ~4.9W; 30 (~29W) covers measured heavy-load losses (XT60 at 430C draws 15-18W)
+#endif
 
 /// Default Control if no other controller is defined
 #define TIP_THERMAL_MASS        0    // Not used for PID
 #define TIP_THERMAL_INERTIA     0    // Not used for PID
+#ifdef MODEL_HS02B
+// F210 heater resistance is NOT published anywhere (checked FNIRSI docs, manuals, reviews,
+// IronOS discussion #1935). Bounded to <=4R by the 100W-at-20V rating, so 2.5R is a
+// plausible placeholder in the same class as the A.
+// This value matters far less than it looks: it only scales watts->PWM, giving
+// P_delivered = P_requested * (R_assumed / R_true) -- a pure gain on the controller
+// output, indistinguishable from scaling KP/KI/KD together. Whoever retunes the gains
+// above absorbs any error here. Do NOT "correct" it in isolation.
+#define TIP_RESISTANCE          25   // F210, unmeasured placeholder
+#else
 #define TIP_RESISTANCE          25   // C245 is around 2.5R
+#endif
 
 #define FLASH_LOGOADDR      (0x08000000 + (122 * 1024)) // 2KB up to address 0x0801F000 (124 * 1024)
 #define SETTINGS_START_PAGE (0x08000000 + (120 * 1024))

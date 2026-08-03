@@ -53,11 +53,26 @@ to work on it. General IronOS docs live in `Documentation/`.
 - **PWM pipeline width:** `powerPWM` is 395 on this board (> 255). The shared
   `X10WattsToPWM()` / `setTipPWM()` path must be `uint16_t` end to end, otherwise high duty
   wraps mod 256 and output collapses (the "100 W only reaches ~40 W" bug — fixed).
+- **Bootloader firmware magic is CASE-SENSITIVE and differs per model.** The 16-byte header
+  `add_header.py` prepends starts with a 3-char magic, and each bootloader accepts **only its
+  own case** (verified by diffing the two bootloaders' full flash dumps — the check is
+  otherwise byte-identical code, same branch offsets, differing *only* in three `CMP`
+  immediates):
+  - **HS-02A** bootloader compares `0x62 0x69 0x6E` = **`bin`** (lowercase).
+  - **HS-02B** bootloader compares `0x42 0x49 0x4E` = **`BIN`** (uppercase).
+  - Neither has a fallback path for the other case. Stock images match: `APP_HS_02A_*.bin`
+    begin `62 69 6e 00`, `APP_HS_02B_V1.8.bin` begins `42 49 4e 00`.
+
+  `source/Makefile` (`CUSTOM_FORMAT_CMD`, ~line 330) passes **`bin`**, so our build only
+  flashes on an **HS-02A**. To produce an HS-02B-flashable image, change that argument to
+  `BIN`. (Flashing is only half the story — the 02B's tip is lower-power and uses a
+  completely different PID gain set, so it would still need retuning.)
 
 ## Temperature control & calibration (branch `fix/hs02-pid-tuning`)
 
 - **Controller:** PID (`TIP_CONTROL_PID`), NOT the ARDC it shipped with. Field-tuned on an
-  HS-02A soldering XT60 connectors: KP=40, KI=300, KD=8000, `TIP_PID_INTEGRAL_LIMIT_SCALE 30`.
+  HS-02A soldering XT60 connectors: KP=40, KI=700, KD=8000, `TIP_PID_INTEGRAL_LIMIT_SCALE 30`
+  (authoritative values live in `Core/BSP/Fnirsi/configuration.h:185-188` — check there, not here).
   Requires the **conditional anti-windup** added to the shared PID in `PIDThread.cpp`
   (upstream-worthy): without it the integral rails to ± the clamp during heatup/overshoot
   and the system limit-cycles around the set point for minutes.
@@ -70,15 +85,25 @@ to work on it. General IronOS docs live in `Documentation/`.
      is REJECTED — the nominal curve over-reads ~25-30% (stock firmware itself shows 230 °C
      at a real 183 °C, hardware-verified). IronOS settings live below `0x0801F000`, so the
      stock page survives reflashing.
-  2. **Fallback:** measured 26 uV/°C constant, calibrated with solder melting points
-     (Sn45/Pb55: solidus 183 °C "blade can cut", liquidus ~227 °C "melts") — ~3× more
-     accurate than stock on an uncalibrated unit (+17 vs +47 °C at 183 °C real).
+  2. **Fallback:** a measured 36 uV/°C base through 250 °C, followed by continuous
+     piecewise corrections of 1.17× from 250–350 °C and 1.56× above 350 °C.
 - **Debug menu "Tip Cal" page** (17th page; home screen → long-press UP): shows the three
-  decoded cal counts + "In Use" / "Unused 26uV/C". NOTE: raw ASCII literals render garbled —
+  decoded cal counts + "In Use" / "Custom Curve". NOTE: raw ASCII literals render garbled —
   the small font only carries glyphs used by translations; UI text must go through
   `make_translation.py` (`get_constants()` SmallSymbol* entries or `get_debug_menu()`).
-- Stock PID for reference (from RE): incremental/velocity form, Kp=2.38 Ki=0.81 Kd=0.28
-  (doubles in the .data tail), gain-scheduled ×4.5/×3.0/×2.0 at 9/12/15 V PD tiers.
+- Stock PID for reference (from RE): incremental/velocity form. **HS-02A and HS-02B use
+  DIFFERENT gain sets** (verified by decoding both firmwares' double constant pools — so
+  the "02A/02B differ only in the soft-start ramp" claim in
+  `firmwares/HS-02_PID_FUN_08009f00_还原.md` is wrong):
+  - **HS-02A** (V1.8 & V2.1): Kp=2.38 Ki=0.81 Kd=0.28 (doubles at `0x080170d0`, in the
+    .data tail), gain-scheduled ×4.5/×3.0/×2.0 at 9/12/15 V PD tiers (`0x0800a24c`).
+  - **HS-02B** (V1.8 **and V2.0.1**): Kp=0.04 Ki=0.01 Kd=0.02 (doubles at `0x0800a1b0` in
+    V1.8, `0x0800a13c` in V2.0.1), with direct output clamps e≥100→100 % / e≤−20→0
+    (`0x0800a1d0`/`…1d8`) and Kp halved to 0.02 when setpoint < 200 °C. Tick fn
+    `FUN_08009ed0`; see `firmwares/HS-02_PID_FUN_08009f00_还原.md`.
+  - Neither gain set appears in the other machine's firmware — they are mutually exclusive.
+    Now confirmed across **four** firmwares (02A V1.8 + V2.1.0, 02B V1.8 + V2.0.1): the split
+    is per-model and persists across version bumps, it is not a version artefact.
 
 ## UI architecture (IronOS)
 
@@ -116,3 +141,27 @@ button/interaction map, and the extracted boot logo. Key finding: the temperatur
 path (calibration, PID, factory defaults) is byte-identical V1.8↔V2.1; the only temp-relevant
 change in V2.1 is the accelerometer tilt-angle logic (a new 90° breakpoint affecting
 motion-sleep), which is why V2.1 "holds temperature more aggressively".
+
+### Full-flash dumps (`FLASH.BIN` 128K @`0x08000000` + `RAM.BIN` 24K + `SYSOPT.BIN` 20B)
+
+Two community dumps live under `firmwares/`: `Flash+Ram+Sysopt.HS02A.2.1.1/` and
+`hs202b-dump/` (= **HS-02B V2.0.1**, a build not otherwise available as an `APP_*.bin`).
+These are the only source of the **bootloader** (first `0x5800`) and the stock settings page.
+
+- **They were produced by an official firmware feature, not a homebrew tool.** Stock builds
+  ship a debug USB MSD mode exposing a FAT16 volume `HS-02 MEM` with `FLASH.BIN`/`RAM.BIN`/
+  `SYSOPT.BIN` (VID `0x19F5` Nations). It is versioned and lives in the **app**, not the
+  bootloader: `HS-02 USB MSD v0.0.7` (02A 2.1.1), `v0.0.6` @`0x08008b8c` (02B V2.0.1).
+  Binary forensics on 2.1.0→2.1.1 (LCP 0, 9.6 % aligned identity, 52.8 % of 64 B chunks
+  verbatim-but-relocated, no constant-shift delta) says full recompile-from-source, i.e.
+  official — not a binary patch.
+- **Bootloaders are one source base with a per-model magic constant** — see the case-sensitive
+  `bin`/`BIN` gotcha above. Otherwise the first ~15 KB is near-identical (a dozen data
+  pointers shifted `0x20`); real code divergence is confined to `0x4000-0x5000` (the MSD
+  flash-write path). `SYSOPT.BIN` is byte-identical across models (RDP off).
+- **Neither dumped unit had ever been user-calibrated**: the three cal words at `0x0801F858`
+  read `0x8000 0x8000 0x8000` on both — the placeholder our `ThermoModel` rejects.
+- **RAM is not tight on stock**: both dumps show live data only in the low ~8 KB; from
+  `0x20002000` up, entropy is 7.8–7.95 bits/byte (uninitialised). ≥16 KB of the 24 KB is free.
+  (An early "2.1.1 uses all RAM" read was wrong — `SP=0x20006000` is the stack-*top*
+  convention, not a usage figure.)
