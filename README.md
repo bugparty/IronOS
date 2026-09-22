@@ -36,8 +36,10 @@ It is a fork of following projects:
 |     Device     | DC  | QC  | PD   |        Notes                  |
 | :------------: | :-: | :-: | :--: | :---------------------------: |
 | FNIRSI HS-02A  | ✔️  | ❌  | ✔️\* |                               |
-| FNIRSI HS-02B  | ✔️  | ❌  | ✔️\* | Not tested                    |
+| FNIRSI HS-02B  | ✔️  | ❌  | ✔️\* | Build target available; hardware testing required |
 | \*\*           |     |     |      |                               |
+
+> **WARNING: HS-02B temperature calibration is not validated.** The displayed temperature may be far below the actual tip temperature; during initial testing, a displayed 200 °C produced a visibly red-hot tip and nearly damaged it. Do not heat or use this firmware on an HS-02B without an independent soldering-tip thermometer or temperature tester. The temperature model must be calibrated for the B version before normal use.
 
 \* _HS-02_ has CH224K PD controller which provides no negotiation feedback to the HS02A CPU (as far as I know). Requested voltage is fixed to 20V in this release. 
 \*\* [Original IronOS](https://github.com/Ralim/IronOS) HW ports are preserved but they are _not tested and may be broken!_
@@ -59,6 +61,7 @@ The links in the table below allow to download available builds directly:
 |        Device         | Stable Release |
 |:---------------------:|:--------------:|
 | FNIRSI HS-02          | [HS02_EN_firmware.bin ](https://github.com/bugparty/IronOS/releases/download/v1/HS02_EN_firmware.bin) |
+| FNIRSI HS-02B         | Build locally with `cd source && make model=HS02B firmware-EN` |
 
 [^changelog]:
 

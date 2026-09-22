@@ -12,6 +12,8 @@ to work on it. General IronOS docs live in `Documentation/`.
 - Manual: `cd source && make model=HS02 -j$(nproc)`. Output to flash is
   `source/Hexfile/HS02_EN_firmware.bin` (carries the 16-byte `bin` header the MSD bootloader
   needs — plain `HS02_EN.bin` will NOT flash).
+- HS-02B: use `cd source && make model=HS02B -j$(nproc)`; the output is
+  `source/Hexfile/HS02B_EN_firmware.bin`.
 - Toolchain (Fedora): `arm-none-eabi-gcc-cs arm-none-eabi-gcc-cs-c++ arm-none-eabi-newlib
   arm-none-eabi-binutils-cs` + `pip install bdflib` (translation/font generation).
 - **Flashing quirk:** the FNIRSI MSD bootloader mishandles USB write caching. On Linux you

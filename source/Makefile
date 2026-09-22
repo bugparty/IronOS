@@ -7,7 +7,7 @@ ALL_PINECIL_MODELS=Pinecil
 ALL_PINECIL_V2_MODELS=Pinecilv2
 ALL_MHP30_MODELS=MHP30
 ALL_SEQURE_MODELS=S60 S60P T55
-ALL_FNIRSI_MODELS=HS02
+ALL_FNIRSI_MODELS=HS02 HS02B
 ALL_MODELS=$(ALL_MINIWARE_MODELS) $(ALL_PINECIL_MODELS) $(ALL_MHP30_MODELS) $(ALL_PINECIL_V2_MODELS) $(ALL_SEQURE_MODELS) $(ALL_FNIRSI_MODELS)
 
 ifneq ($(model),$(filter $(model),$(ALL_MODELS)))
@@ -316,6 +316,10 @@ DEV_GLOBAL_DEFS=-D N32L40X              \
                 -D ARM_MATH_CM4         \
                 -finline-limit=9999999
 
+ifeq ($(model),HS02B)
+DEV_GLOBAL_DEFS+=-D MODEL_HS02
+endif
+
 DEV_LDFLAGS=-Wl,--wrap=printf  -Wl,--no-wchar-size-warning
 DEV_AFLAGS=
 # remove for release
@@ -328,6 +332,10 @@ CPUFLAGS=-mcpu=cortex-m4  \
          -mfloat-abi=hard
 
 CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py bin
+
+ifeq ($(model),HS02B)
+CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py BIN
+endif
 
 SMALL_FONT=default_12x16
 LARGE_FONT=default_24x32

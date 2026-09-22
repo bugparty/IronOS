@@ -2,10 +2,9 @@
 import sys
 import struct
 
-# TODO: it's just quick-and-dirty PoC, implement a real tool
 # usage:
 # python3 add_header.py <string> <file.bin>
-#   <string> should have exactly three characters (for HS02 it's either BIN or bin)
+#   <string> is the three-character bootloader signature (HS-02B requires BIN)
 
 with open(sys.argv[2], 'rb') as input, open(sys.argv[2][:-4]+'_firmware.bin', 'wb') as output:
     data = input.read()
