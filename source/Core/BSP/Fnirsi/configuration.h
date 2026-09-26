@@ -150,9 +150,9 @@
 #define MIN_CALIBRATION_OFFSET 100 // Min value for calibration
 #define SOLDERING_TEMP         320 // Default soldering temp is 320.0 °C
 #ifdef MODEL_HS02B
-// UNVALIDATED: the temperature model below is fitted to the HS-02A's F245 tip. Until the
-// same fit is done against a real thermometer on F210, the displayed temperature may be
-// wrong in either direction, so cap the ceiling lower to bound the damage.
+// UNVALIDATED: ThermoModel.cpp runs the B on the stock B firmware's nominal curve (or its
+// factory calibration, if present). That curve has not been checked against a real
+// thermometer on an F210, so cap the ceiling lower to bound the damage.
 #define MAX_TEMP_C             400 // Max soldering temp selectable °C
 #define MAX_TEMP_F             750 // Max soldering temp selectable °F
 #else

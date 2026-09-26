@@ -20,9 +20,21 @@ extern uint16_t tipSenseResistancex10Ohms;
  * Each word minus a fixed bias yields the raw 12-bit ADC count measured at a
  * reference tip temperature during factory calibration:
  *
- *   count(140C) = word[0x16] - 0x7F21
- *   count(240C) = word[0x17] - 0x7E77
- *   count(340C) = word[0x18] - 0x7DC4
+ *   count(140C) = word[0x16] - bias140
+ *   count(240C) = word[0x17] - bias240
+ *   count(340C) = word[0x18] - bias340
+ *
+ * Each bias is 0x8000 minus the model's NOMINAL count, so the uncalibrated 0x8000
+ * placeholder decodes to the nominal curve. The biases differ per model (stock V1.8
+ * temperature function, 0x08007408 on A / 0x080073ec on B):
+ *
+ *            bias140/240/340          nominal counts at 140/240/340C
+ *   HS-02A   0x7F21/0x7E77/0x7DC4     223/393/572
+ *   HS-02B   0x7FBC/0x7F8B/0x7F42      68/117/190
+ *
+ * The B's thermocouple signal at the ADC is ~3.2x smaller than the A's for the same
+ * tip temperature, so the A's curve read a red-hot B tip as ~200C. Everything else
+ * in that function is identical, and the ADC read and Vin divider match too.
  *
  * Stock converts ADC counts to degC with a piecewise-linear curve through these
  * points (the thermocouple's uV/C slope rises with temperature, so a single
@@ -32,9 +44,17 @@ extern uint16_t tipSenseResistancex10Ohms;
  */
 namespace {
 constexpr uint32_t stockSettingsPageAddr = 0x0801F800;
-constexpr uint32_t stockCalBias140       = 0x7F21;
-constexpr uint32_t stockCalBias240       = 0x7E77;
-constexpr uint32_t stockCalBias340       = 0x7DC4;
+#ifdef MODEL_HS02B
+constexpr uint32_t stockCalBias140 = 0x7FBC;
+constexpr uint32_t stockCalBias240 = 0x7F8B;
+constexpr uint32_t stockCalBias340 = 0x7F42;
+constexpr int32_t  minSaneCount140 = 20;
+#else
+constexpr uint32_t stockCalBias140 = 0x7F21;
+constexpr uint32_t stockCalBias240 = 0x7E77;
+constexpr uint32_t stockCalBias340 = 0x7DC4;
+constexpr int32_t  minSaneCount140 = 50;
+#endif
 
 uint32_t interpolateFallbackTempCx10(uint32_t tipuV, uint32_t loweruV, uint32_t lowerTempCx10, uint32_t upperuV, uint32_t upperTempCx10) {
   return lowerTempCx10 + ((tipuV - loweruV) * (upperTempCx10 - lowerTempCx10)) / (upperuV - loweruV);
@@ -67,8 +87,23 @@ uint32_t adcCount140       = 0; // Raw 12-bit ADC counts at the three factory re
 uint32_t adcCount240       = 0;
 uint32_t adcCount340       = 0;
 
+#ifdef MODEL_HS02B
+// The HS-02A fallback curve below was measured on an F245 tip and reads a B far too
+// low, so the B never uses it. Like the stock B firmware, an uncalibrated unit runs on
+// the nominal curve instead.
+void useNominalCal() {
+  adcCount140     = 0x8000 - stockCalBias140;
+  adcCount240     = 0x8000 - stockCalBias240;
+  adcCount340     = 0x8000 - stockCalBias340;
+  factoryCalValid = true;
+}
+#endif
+
 void loadFactoryCal() {
-  factoryCalChecked    = true;
+  factoryCalChecked = true;
+#ifdef MODEL_HS02B
+  useNominalCal();
+#endif
   const uint32_t *page = (const uint32_t *)stockSettingsPageAddr;
   if (page[0] == 0xFFFFFFFF) {
     return; // Erased page; stock firmware never ran / settings wiped
@@ -81,14 +116,18 @@ void loadFactoryCal() {
   adcCount240 = (a240 > 0) ? (uint32_t)a240 : 0;
   adcCount340 = (a340 > 0) ? (uint32_t)a340 : 0;
   // Units that never received a calibration carry the 0x8000 neutral placeholder
-  // in all three words (decoding to 223/393/572). Verified on real hardware that
-  // the resulting nominal curve over-reads such units by 25-30%, so placeholders
-  // must be rejected in favour of the measured fallback slope.
+  // in all three words, decoding to the nominal curve. On the A, hardware showed
+  // that curve over-reads by 25-30%, so placeholders are rejected in favour of the
+  // measured fallback. The B has no measured fallback yet and keeps the nominal
+  // curve set above, which is what the stock B firmware uses.
   if ((page[0x16] & 0xFFFF) == 0x8000 && (page[0x17] & 0xFFFF) == 0x8000 && (page[0x18] & 0xFFFF) == 0x8000) {
     return;
   }
   // Sanity: counts must be positive, strictly increasing and within the 12-bit range.
-  if (a140 < 50 || a240 <= a140 || a340 <= a240 || a340 > 1500) {
+  if (a140 < minSaneCount140 || a240 <= a140 || a340 <= a240 || a340 > 1500) {
+#ifdef MODEL_HS02B
+    useNominalCal();
+#endif
     return;
   }
   factoryCalValid = true;
@@ -131,10 +170,12 @@ TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
     } else {
       tempX10 = 2400 + ((countX10 - adcCount240 * 10) * 100) / (adcCount340 - adcCount240);
     }
-    // The stock curve outputs ABSOLUTE tip temperature (factory calibration was done
-    // at ~25C ambient, baked into the curve), but this function must return the
-    // delta above the handle; the caller adds the handle temperature back on top.
-    return (tempX10 > 250) ? (tempX10 - 250) : 0;
+    // The stock curve outputs ABSOLUTE tip temperature, but this function must return
+    // the delta above the handle; the caller adds the handle temperature back on top.
+    // That "handle" value is the MCU die sensor (~41-43C, see below), so cancel the
+    // actual value rather than assuming 25C, which read ~17C high.
+    const uint32_t handleTempCx10 = getHandleTemperature(0);
+    return (tempX10 > handleTempCx10) ? (tempX10 - handleTempCx10) : 0;
   }
 
   // The MCU die sensor remains around 41-43C and is not the connector's cold

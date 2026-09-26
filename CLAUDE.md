@@ -96,6 +96,22 @@ matters less than it looks — R only scales watts→PWM, giving
 is mathematically indistinguishable from scaling KP/KI/KD together. **Retuning absorbs any
 error in it, so do not "correct" it in isolation** — that would silently rescale loop gain.
 
+**HS-02B temperature model (stock RE, V1.8):** the B's thermocouple signal at the ADC is
+**~3.2× smaller** than the A's. The stock temperature function (`0x08007408` on A,
+`0x080073ec` on B) is otherwise identical. Only the calibration biases differ, and they
+encode the nominal counts at 140/240/340 °C: A `0x7F21/0x7E77/0x7DC4` = 223/393/572,
+B `0x7FBC/0x7F8B/0x7F42` = 68/117/190 (count = word − bias; bias = 0x8000 − nominal).
+Running the A's curve on a B therefore read a real ~540 °C as 200 °C, which a PR #10
+tester saw as a red-hot tip at a displayed 200. `ThermoModel.cpp` uses the B biases, and
+an uncalibrated B (0x8000 placeholder or erased page) runs on the B nominal curve, never
+the A's measured fallback. Other stock A/B differences in that path: A has a fourth
+anchor (770 counts at 440 °C) while B extrapolates its 240–340 segment; A averages 40
+samples and B 20; the ADC sample time is 0 (A) vs 5 (B), but IronOS uses 239.5 cycles on
+every channel. The V2.x dumps (B 2.0.1, A 2.1.1) restructured this code and have not been
+decoded yet. The B nominal curve has not been checked with a thermometer. On the A, the
+nominal curve over-reads by 25–30 %, so if the B behaves the same, the error is on the
+safe side.
+
 **Build hygiene gotcha (fixed, but know why):** `Core/Gen/` holds generated sources
 (`macros.txt`, `Translation.*.cpp`) derived from the *model's* `configuration.h`, but unlike
 `Objects/` it is shared across models, and `macros.txt` used to depend only on `Makefile`.
