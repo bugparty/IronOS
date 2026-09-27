@@ -36,4 +36,10 @@ void ui_draw_usb_pd_debug_state(const uint16_t vbus_sense_state, const uint8_t s
 void ui_draw_usb_pd_debug_pdo(const uint8_t entry_num, const uint16_t min_voltage, const uint16_t max_voltage, const uint16_t current_a_x100, const uint16_t wattage);
 // Utils
 void printVoltage(void);
+#ifdef LCD_160x80
+// Word-wraps a translated message across the screen from row y, in the font it was encoded
+// for. Returns false if it had to break a word or ran off the screen. draw=false only measures.
+// Leaves the cursor after the last glyph.
+bool ui_print_wrapped(const char *text, uint8_t y, bool draw = true);
+#endif
 #endif // UI_DRAWING_UI_DRAWING_HPP_

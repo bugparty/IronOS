@@ -9,16 +9,19 @@ void ui_draw_warning_undervoltage(void) {
   Display::setColorMode(false);
   Display::clearScreen();
   if (getSettingValue(SettingsOptions::DetailedSoldering)) {
-    Display::setCursor(0, 24);
-    Display::print(translatedString(Tr->UndervoltageString), FontStyle::SMALL);
-    Display::setCursor(0, 48);
-    Display::print(translatedString(Tr->InputVoltageString), FontStyle::SMALL);
-    Display::setCursor(96, 48);
+    // Both strings are translated and may need two lines; the reading ("12.3V", 5 glyphs)
+    // goes after the label when it fits, else on the next line.
+    ui_print_wrapped(translatedString(Tr->UndervoltageString), 8);
+    ui_print_wrapped(translatedString(Tr->InputVoltageString), Display::getCursorY() + FONT_SMALL_HEIGHT + 8);
+    if (Display::getCursorX() + 6 * FONT_SMALL_WIDTH > DISPLAY_WIDTH) {
+      Display::setCursor(0, Display::getCursorY() + FONT_SMALL_HEIGHT);
+    } else {
+      Display::setCursor(Display::getCursorX() + FONT_SMALL_WIDTH, Display::getCursorY());
+    }
     printVoltage();
     Display::print(SmallSymbolVolts, FontStyle::SMALL);
   } else {
-    Display::setCursor(4, 24);
-    Display::print(translatedString(Tr->UVLOWarningString), FontStyle::LARGE);
+    ui_print_wrapped(translatedString(Tr->UVLOWarningString), 8);
   }
 
   Display::refresh();

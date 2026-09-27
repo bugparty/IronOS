@@ -147,7 +147,11 @@ int main(int argc, char **argv) {
       {"WarningKeysLockedString", Tr->WarningKeysLockedString}, {"DeviceFailedValidationWarning", Tr->DeviceFailedValidationWarning},
       {"TooHotToStartProfileWarning", Tr->TooHotToStartProfileWarning}, {"WarningThermalRunaway", Tr->WarningThermalRunaway},
       {"WarningTipShorted", Tr->WarningTipShorted}};
-  for (auto &w : warnings) { mono(); warnUser(translatedString(w.idx), BUTTON_NONE); capture("Warnings", w.name); }
+  for (auto &w : warnings) {
+    mono(); warnUser(translatedString(w.idx), BUTTON_NONE); capture("Warnings", w.name);
+    // Messages too long to wrap scroll; show where the scroll is 4 s in (skipped if unchanged).
+    g_tick = 4000; mono(); warnUser(translatedString(w.idx), BUTTON_NONE); capture("Warnings", std::string(w.name) + " (+4 s)", true); g_tick = 0;
+  }
   // Confirmation prompts scroll in the large font.
   mono(); drawScrollingText(translatedString(Tr->SettingsResetWarning), 0); capture("Warnings", "SettingsResetWarning (first frame)");
   mono(); drawScrollingText(translatedString(Tr->SettingsCalibrationWarning), 0); capture("Warnings", "SettingsCalibrationWarning (first frame)");
