@@ -19,6 +19,7 @@ constexpr uint16_t kSleepPalette[4]                       = {0x0924, 0xF77C, 0x4
 constexpr uint8_t  kWashGlyphI[Hs02WashFont::kGlyphBytes] = {4, 4, 0xFC, 4, 4, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0};
 constexpr uint8_t  kWashGlyphU[Hs02WashFont::kGlyphBytes] = {0xFC, 0, 0, 0, 0xFC, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0};
 constexpr uint8_t  kWashCustomGlyphAdvance                = 6;
+constexpr uint8_t  kReadyRightEdge                        = 147;
 
 void drawTemperatureNumber(TemperatureType_t temperature, uint8_t x, uint8_t y, uint8_t color) {
   uint8_t digits[3] = {};
@@ -31,13 +32,14 @@ void drawTemperatureNumber(TemperatureType_t temperature, uint8_t x, uint8_t y, 
   }
 }
 
-uint8_t washGlyphAdvance(char character) {
-  const int8_t index = Hs02WashFont::glyphIndex(character);
+// The labels are translated UTF-8 (see Hs02WashFont.hpp); everything else is ASCII.
+uint8_t washGlyphAdvance(uint16_t codepoint) {
+  const int16_t index = Hs02WashFont::glyphIndex(codepoint);
   return index < 0 ? 0 : Hs02WashFont::kAdvance[index];
 }
 
-uint8_t washGlyphLeftBearing(char character) {
-  const int8_t index = Hs02WashFont::glyphIndex(character);
+uint8_t washGlyphLeftBearing(uint16_t codepoint) {
+  const int16_t index = Hs02WashFont::glyphIndex(codepoint);
   if (index < 0) {
     return 0;
   }
@@ -54,19 +56,20 @@ uint8_t washGlyphLeftBearing(char character) {
 uint8_t measureWashText(const char *text) {
   uint8_t width = 0;
   while (*text) {
-    width += washGlyphAdvance(*text++);
+    width += washGlyphAdvance(Hs02WashFont::nextCodepoint(text));
   }
   return width;
 }
 
+// y is the top of the capitals; the cell starts kTopPad rows higher for accent marks.
 uint8_t drawWashText(const char *text, uint8_t x, uint8_t y, uint8_t color) {
   while (*text) {
-    const char   character = *text++;
-    const int8_t index     = Hs02WashFont::glyphIndex(character);
+    const uint16_t codepoint = Hs02WashFont::nextCodepoint(text);
+    const int16_t  index     = Hs02WashFont::glyphIndex(codepoint);
     if (index >= 0) {
-      Display::drawBitmapColor(Hs02WashFont::kGlyphs[index], Hs02WashFont::kGlyphWidth, Hs02WashFont::kGlyphHeight, x - washGlyphLeftBearing(character), y, color);
+      Display::drawBitmapColor(Hs02WashFont::kGlyphs[index], Hs02WashFont::kGlyphWidth, Hs02WashFont::kGlyphHeight, x - washGlyphLeftBearing(codepoint), y - Hs02WashFont::kTopPad, color);
     }
-    x += washGlyphAdvance(character);
+    x += washGlyphAdvance(codepoint);
   }
   return x;
 }
@@ -75,18 +78,20 @@ uint8_t drawWashText(const char *text, uint8_t x, uint8_t y, uint8_t color) {
 // 10px Fusion Pixel glyphs: a true 12px visual size without another font blob.
 uint8_t drawWashTextEmphasis(const char *text, uint8_t x, uint8_t y, uint8_t color) {
   while (*text) {
-    const char   character = *text++;
-    const int8_t index     = Hs02WashFont::glyphIndex(character);
+    const uint16_t codepoint = Hs02WashFont::nextCodepoint(text);
+    const int16_t  index     = Hs02WashFont::glyphIndex(codepoint);
     if (index >= 0) {
-      const uint8_t bearing = washGlyphLeftBearing(character);
+      const uint8_t bearing = washGlyphLeftBearing(codepoint);
       for (uint8_t gy = 0; gy < Hs02WashFont::kGlyphHeight; ++gy) {
+        // Scale from the capitals' top row so accent marks land above y.
+        const int8_t row = gy - Hs02WashFont::kTopPad;
         for (uint8_t gx = bearing; gx < Hs02WashFont::kGlyphWidth; ++gx) {
           const uint8_t bits = Hs02WashFont::kGlyphs[index][(gy / 8) * Hs02WashFont::kGlyphWidth + gx];
           if (bits & (1u << (gy % 8))) {
             const uint8_t sx        = (gx - bearing) * 6 / 5;
-            const uint8_t sy        = gy * 6 / 5;
+            const int8_t  sy        = row * 6 / 5;
             const uint8_t rawWidth  = ((gx - bearing + 1) * 6 / 5) - sx;
-            const uint8_t rawHeight = ((gy + 1) * 6 / 5) - sy;
+            const uint8_t rawHeight = ((row + 1) * 6 / 5) - sy;
             const uint8_t sw        = rawWidth ? rawWidth : 1;
             const uint8_t sh        = rawHeight ? rawHeight : 1;
             Display::fillRectColor(x + sx, y + sy, sw, sh, color);
@@ -94,7 +99,7 @@ uint8_t drawWashTextEmphasis(const char *text, uint8_t x, uint8_t y, uint8_t col
         }
       }
     }
-    x += (washGlyphAdvance(character) * 6 + 2) / 5;
+    x += (washGlyphAdvance(codepoint) * 6 + 2) / 5;
   }
   return x;
 }
@@ -102,7 +107,7 @@ uint8_t drawWashTextEmphasis(const char *text, uint8_t x, uint8_t y, uint8_t col
 uint8_t measureWashTextEmphasis(const char *text) {
   uint8_t width = 0;
   while (*text) {
-    width += (washGlyphAdvance(*text++) * 6 + 2) / 5;
+    width += (washGlyphAdvance(Hs02WashFont::nextCodepoint(text)) * 6 + 2) / 5;
   }
   return width;
 }
@@ -144,13 +149,7 @@ uint8_t drawWashUnsigned(uint32_t value, uint8_t x, uint8_t y, uint8_t color) {
   return x;
 }
 
-// Value is expressed in tenths (for example 200 = 20.0).  The UI font is
-// deliberately separate from the shared translation font, so it accepts ASCII.
-uint8_t measureWashTenths(uint32_t value, char unit) {
-  const char tail[] = {'.', static_cast<char>('0' + value % 10), unit, '\0'};
-  return measureWashUnsigned(value / 10) + measureWashText(tail);
-}
-
+// Value is expressed in tenths (for example 200 = 20.0).
 uint8_t drawWashTenths(uint32_t value, uint8_t x, uint8_t y, uint8_t color, char unit) {
   const uint32_t whole = value / 10;
   x                    = drawWashUnsigned(whole, x, y, color);
@@ -159,10 +158,10 @@ uint8_t drawWashTenths(uint32_t value, uint8_t x, uint8_t y, uint8_t color, char
   return drawWashText(tail, x, y, color);
 }
 
-uint8_t drawWashTenthsEmphasis(uint32_t value, uint8_t x, uint8_t y, uint8_t color, char unit) {
-  char     text[10] = {};
-  uint8_t  pos      = 0;
-  uint32_t whole    = value / 10;
+// Formats a tenths value with its unit, e.g. 200 -> "20.0V". text must hold 10 chars.
+void formatWashTenths(uint32_t value, char unit, char *text) {
+  uint8_t  pos   = 0;
+  uint32_t whole = value / 10;
   char     reversed[5];
   uint8_t  count = digitCount(whole);
   for (uint8_t i = 0; i < count; ++i) {
@@ -175,7 +174,19 @@ uint8_t drawWashTenthsEmphasis(uint32_t value, uint8_t x, uint8_t y, uint8_t col
   text[pos++] = '.';
   text[pos++] = '0' + value % 10;
   text[pos++] = unit;
+  text[pos]   = '\0';
+}
+
+uint8_t drawWashTenthsEmphasis(uint32_t value, uint8_t x, uint8_t y, uint8_t color, char unit) {
+  char text[10];
+  formatWashTenths(value, unit, text);
   return drawWashTextEmphasis(text, x, y, color);
+}
+
+uint8_t measureWashTenthsEmphasis(uint32_t value, char unit) {
+  char text[10];
+  formatWashTenths(value, unit, text);
+  return measureWashTextEmphasis(text);
 }
 
 void drawSleepCountdown() {
@@ -195,9 +206,10 @@ void drawSleepCountdown() {
     number[i - 1] = '0' + remaining % 10;
     remaining /= 10;
   }
-  const uint8_t width  = measureWashTextEmphasis("SLEEP ") + measureWashTextEmphasis(number) + measureWashTextEmphasis(unit);
+  const char   *label  = Hs02WashFont::kLabels.sleep;
+  const uint8_t width  = measureWashTextEmphasis(label) + measureWashTextEmphasis(" ") + measureWashTextEmphasis(number) + measureWashTextEmphasis(unit);
   const uint8_t x      = kScreenWidth - 6 - width;
-  uint8_t       cursor = drawWashTextEmphasis("SLEEP ", x, 64, kInk);
+  uint8_t       cursor = drawWashTextEmphasis(" ", drawWashTextEmphasis(label, x, 64, kInk), 64, kInk);
   cursor               = drawWashTextEmphasis(number, cursor, 64, kInk);
   drawWashTextEmphasis(unit, cursor, 64, kInk);
 #endif
@@ -222,6 +234,13 @@ void drawWashTipMicrovolts() {
   drawWashText("V", cursor + kWashCustomGlyphAdvance, 5, kMuted);
 }
 
+// "SET 320", centred.
+void drawWashSetTemperature(TemperatureType_t target) {
+  const char   *set   = Hs02WashFont::kLabels.set;
+  const uint8_t width = measureWashText(set) + measureWashText(" ") + measureWashUnsigned(target);
+  drawWashUnsigned(target, drawWashText(" ", drawWashText(set, (kScreenWidth - width) / 2, 47, kMuted), 47, kMuted), 47, kMuted);
+}
+
 void drawWashTopTelemetry() {
   drawWashTopVoltage();
   drawWashTipMicrovolts();
@@ -232,12 +251,10 @@ void drawWashHeating(TemperatureType_t current, TemperatureType_t target, uint32
   drawTemperatureNumber(current, 80 - (3 * Hs02InterSemiBoldFont::kDigitWidth) / 2, 18, kInk);
 
   if (boostModeOn) {
-    drawWashText("BOOST", (kScreenWidth - measureWashText("BOOST")) / 2, 47, kAccent);
+    const char *boost = Hs02WashFont::kLabels.boost;
+    drawWashText(boost, (kScreenWidth - measureWashText(boost)) / 2, 47, kAccent);
   } else {
-    const uint8_t digits = digitCount(target);
-    const uint8_t width  = measureWashText("SET ") + measureWashUnsigned(target);
-    const uint8_t x      = (kScreenWidth - width) / 2;
-    drawWashUnsigned(target, drawWashText("SET ", x, 47, kMuted), 47, kMuted);
+    drawWashSetTemperature(target);
   }
 
   drawWashTenthsEmphasis(x10Watt, 6, 64, kAccent, 'W');
@@ -253,11 +270,10 @@ void ui_draw_home_gauge_idle(TemperatureType_t tipTemp) {
   drawWashTopTelemetry();
   drawTemperatureNumber(tipTemp, 80 - (3 * Hs02InterSemiBoldFont::kDigitWidth) / 2, 18, kInk);
 
-  const TemperatureType_t target = getSettingValue(SettingsOptions::SolderingTemp);
-  const uint8_t           width  = measureWashText("SET ") + measureWashUnsigned(target);
-  const uint8_t           x      = (kScreenWidth - width) / 2;
-  drawWashUnsigned(target, drawWashText("SET ", x, 47, kMuted), 47, kMuted);
-  drawWashTextEmphasis("READY", 112, 64, kAccent);
+  drawWashSetTemperature(getSettingValue(SettingsOptions::SolderingTemp));
+  // Right-aligned to where the English "READY" has always ended.
+  const char *ready = Hs02WashFont::kLabels.ready;
+  drawWashTextEmphasis(ready, kReadyRightEdge - measureWashTextEmphasis(ready), 64, kAccent);
 }
 
 void ui_draw_home_gauge_soldering(bool boostModeOn) {
@@ -271,10 +287,11 @@ void ui_draw_home_gauge_sleep(TemperatureType_t tipTemp) {
   Display::setColorPalette(kSleepPalette);
   drawTemperatureNumber(tipTemp, 80 - (3 * Hs02InterSemiBoldFont::kDigitWidth) / 2, 18, kInk);
   const uint32_t voltage    = getInputVoltageX10(getSettingValue(SettingsOptions::VoltageDiv), 0);
-  const uint8_t  valueWidth = measureWashTenths(voltage, 'V');
-  const uint8_t  labelWidth = measureWashText("SLEEP ");
+  const uint8_t  valueWidth = measureWashTenthsEmphasis(voltage, 'V');
+  const char    *label      = Hs02WashFont::kLabels.sleep;
+  const uint8_t  labelWidth = measureWashTextEmphasis(label) + measureWashTextEmphasis(" ");
   const uint8_t  x          = (kScreenWidth - labelWidth - valueWidth) / 2;
-  drawWashTenthsEmphasis(voltage, drawWashTextEmphasis("SLEEP ", x, 64, kMuted), 64, kMuted, 'V');
+  drawWashTenthsEmphasis(voltage, drawWashTextEmphasis(" ", drawWashTextEmphasis(label, x, 64, kMuted), 64, kMuted), 64, kMuted, 'V');
 }
 
 #endif

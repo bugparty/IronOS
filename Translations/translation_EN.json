@@ -347,5 +347,11 @@
       "displayText": "Soldering\nTip Type",
       "description": "Select the tip type fitted"
     }
+  },
+  "gaugeLabels": {
+    "Ready": "READY",
+    "Set": "SET",
+    "Boost": "BOOST",
+    "Sleep": "SLEEP"
   }
 }

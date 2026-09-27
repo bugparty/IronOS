@@ -276,15 +276,15 @@
       "description": "Omvänd ordning för temperaturjustering via plus/minus knapparna"
     },
     "ReverseButtonSettings": {
-      "displayText": "Swap\nA B keys",
-      "description": "Reverse assignment of buttons for Settings menu"
+      "displayText": "Omvända\nA B knappar",
+      "description": "Omvänd knapptilldelning i inställningsmenyn"
     },
     "AnimSpeed": {
       "displayText": "Anim.-\nhastighet",
       "description": "Animationshastighet för ikoner i menyer (L=långsam | M=medel | S=snabb)"
     },
     "AnimLoop": {
-      "displayText": "Anim.\nloop",
+      "displayText": "Loopa\nanimation",
       "description": "Loopa animationer i huvudmeny"
     },
     "Brightness": {
@@ -316,7 +316,7 @@
       "description": "Maximal effekt som enheten kan använda (Watt)"
     },
     "CalibrateCJC": {
-      "displayText": "Kalibrera CJC\nnästa uppstart",
+      "displayText": "Kalibrera CJC\nnästa start",
       "description": "Vid nästa uppstart kommer spets Cold Junction Compensation kalibreras (ej nödvändigt om Delta T är < 5°C)"
     },
     "VoltageCalibration": {
@@ -347,5 +347,11 @@
       "displayText": "Soldering\nTip Type",
       "description": "Select the tip type fitted"
     }
+  },
+  "gaugeLabels": {
+    "Ready": "KLAR",
+    "Set": "MÅL",
+    "Boost": "TURBO",
+    "Sleep": "VILA"
   }
 }

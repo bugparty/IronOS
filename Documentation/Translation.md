@@ -10,3 +10,25 @@ For testing you can build locally and test of course; but if you dont want to fi
 This means that once you have a github account you can perform all of your edits inside Github should this be desired.
 
 Translations are _NOT_ accepted via issues/discussions or email.
+
+## FNIRSI HS-02 colour screens
+
+The HS-02 home, soldering and sleep screens show four short labels in a small
+pixel font of their own. They come from the optional `gaugeLabels` section of
+the translation file:
+
+```json
+"gaugeLabels": {
+  "Ready": "READY",
+  "Set": "SET",
+  "Boost": "BOOST",
+  "Sleep": "SLEEP"
+}
+```
+
+Use uppercase and keep each label short (about 8 letters). Any label left out
+falls back to English. So does a label using a character the font subset does
+not have: it covers Latin, Greek and Cyrillic, but not CJK yet.
+
+To see how a translation fits the HS-02 screen without the hardware, run
+`tools/hs02-lang-preview/run.sh <LANG>`. It renders every screen to PNG.

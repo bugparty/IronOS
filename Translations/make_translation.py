@@ -21,6 +21,7 @@ from bdflib.model import Font, Glyph
 import font_tables
 import brieflz
 import objcopy
+import wash_font
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
@@ -703,6 +704,8 @@ class LanguageData:
     small_text_symbols: List[str]
     large_text_symbols: List[str]
     font_map: FontMapsPerFont
+    # HS-02 colour-screen labels and glyphs; only built for LCD_160x80 targets
+    wash: Optional[wash_font.WashData] = None
 
 
 def prepare_language(
@@ -1508,6 +1511,11 @@ def main() -> None:
             language_data = prepare_languages(
                 langs_, defs_, build_version, args.small_font, args.large_font
             )
+        if "LCD_160x80" in macros:
+            # Multi-language builds get the first language's labels.
+            language_data.wash = wash_font.build_wash_data(
+                language_data.langs[0], read_translation(json_dir, "EN")
+            )
 
     out_ = args.output
     write_start(out_)
@@ -1535,6 +1543,9 @@ def main() -> None:
             )
         else:
             write_languages(language_data, out_, compress_font=args.compress_font)
+
+    if language_data.wash:
+        wash_font.write_wash_data(language_data.wash, out_)
 
     if args.output_pickled:
         logging.info(f"Writing pickled data to {args.output_pickled.name}")
