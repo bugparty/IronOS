@@ -160,8 +160,8 @@ uint8_t drawWashTenths(uint32_t value, uint8_t x, uint8_t y, uint8_t color, char
 
 // Formats a tenths value with its unit, e.g. 200 -> "20.0V". text must hold 10 chars.
 void formatWashTenths(uint32_t value, char unit, char *text) {
-  uint8_t  pos      = 0;
-  uint32_t whole    = value / 10;
+  uint8_t  pos   = 0;
+  uint32_t whole = value / 10;
   char     reversed[5];
   uint8_t  count = digitCount(whole);
   for (uint8_t i = 0; i < count; ++i) {
