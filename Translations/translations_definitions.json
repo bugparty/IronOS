@@ -582,5 +582,27 @@
       "maxLen2": 15,
       "description": "For manually selecting the type of tip fitted"
     }
+  ],
+  "gaugeLabels": [
+    {
+      "id": "Ready",
+      "include": ["LCD_160x80"],
+      "description": "HS-02 colour home screen: the tip is idle and ready to heat. Uppercase, about 8 letters max."
+    },
+    {
+      "id": "Set",
+      "include": ["LCD_160x80"],
+      "description": "HS-02 colour screens: shown before the set (target) temperature, e.g. \"SET 320\". Uppercase, short."
+    },
+    {
+      "id": "Boost",
+      "include": ["LCD_160x80"],
+      "description": "HS-02 colour soldering screen: boost mode is active. Uppercase, about 10 letters max."
+    },
+    {
+      "id": "Sleep",
+      "include": ["LCD_160x80"],
+      "description": "HS-02 colour screens: before the sleep countdown (\"SLEEP 5m\") and on the sleep screen. Uppercase, about 8 letters max."
+    }
   ]
 }

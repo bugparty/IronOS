@@ -347,5 +347,11 @@
       "displayText": "Тип\nжала",
       "description": "Выбор типа установленного жала"
     }
+  },
+  "gaugeLabels": {
+    "Ready": "ГОТОВ",
+    "Set": "ЦЕЛЬ",
+    "Boost": "ТУРБО",
+    "Sleep": "СОН"
   }
 }

@@ -347,5 +347,11 @@
       "displayText": "Soldering\nTip Type",
       "description": "Select the tip type fitted"
     }
+  },
+  "gaugeLabels": {
+    "Ready": "KLAR",
+    "Set": "MÅL",
+    "Boost": "TURBO",
+    "Sleep": "VILA"
   }
 }
