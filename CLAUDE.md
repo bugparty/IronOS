@@ -107,8 +107,8 @@ an uncalibrated B (0x8000 placeholder or erased page) runs on the B nominal curv
 the A's measured fallback. Other stock A/B differences in that path: A has a fourth
 anchor (770 counts at 440 °C) while B extrapolates its 240–340 segment; A averages 40
 samples and B 20; the ADC sample time is 0 (A) vs 5 (B), but IronOS uses 239.5 cycles on
-every channel. The V2.x dumps (B 2.0.1, A 2.1.1) restructured this code and have not been
-decoded yet. The B nominal curve has not been checked with a thermometer. On the A, the
+every channel. The V2.x dumps (B 2.0.1, A 2.1.1) don't contain this
+function: their app region is PanKleszcz's MSD dumper, not stock (see Full-flash dumps). The B nominal curve has not been checked with a thermometer. On the A, the
 nominal curve over-reads by 25–30 %, so if the B behaves the same, the error is on the
 safe side.
 
