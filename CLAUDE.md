@@ -9,9 +9,9 @@ to work on it. General IronOS docs live in `Documentation/`.
 
 - One-shot build: `./build-hs02.sh` (repo root). `--clean` to rebuild, `--flash <MSD mount>`
   to build + flash. It checks the toolchain and points at the output.
-- Manual: `cd source && make model=HS02 -j$(nproc)`. Output to flash is
-  `source/Hexfile/HS02_EN_firmware.bin` (carries the 16-byte `bin` header the MSD bootloader
-  needs — plain `HS02_EN.bin` will NOT flash).
+- Manual: `cd source && make model=HS02 -j$(nproc)` (or `model=HS02B` — see the A/B section
+  below). Output to flash is `source/Hexfile/$(model)_EN_firmware.bin` (carries the 16-byte
+  magic header the MSD bootloader needs — plain `HS02_EN.bin` will NOT flash).
 - Toolchain (Fedora): `arm-none-eabi-gcc-cs arm-none-eabi-gcc-cs-c++ arm-none-eabi-newlib
   arm-none-eabi-binutils-cs` + `pip install bdflib` (translation/font generation).
 - **Flashing quirk:** the FNIRSI MSD bootloader mishandles USB write caching. On Linux you
@@ -53,11 +53,77 @@ to work on it. General IronOS docs live in `Documentation/`.
 - **PWM pipeline width:** `powerPWM` is 395 on this board (> 255). The shared
   `X10WattsToPWM()` / `setTipPWM()` path must be `uint16_t` end to end, otherwise high duty
   wraps mod 256 and output collapses (the "100 W only reaches ~40 W" bug — fixed).
+- **Bootloader firmware magic is CASE-SENSITIVE and differs per model.** The 16-byte header
+  `add_header.py` prepends starts with a 3-char magic, and each bootloader accepts **only its
+  own case** (verified by diffing the two bootloaders' full flash dumps — the check is
+  otherwise byte-identical code, same branch offsets, differing *only* in three `CMP`
+  immediates):
+  - **HS-02A** bootloader compares `0x62 0x69 0x6E` = **`bin`** (lowercase).
+  - **HS-02B** bootloader compares `0x42 0x49 0x4E` = **`BIN`** (uppercase).
+  - Neither has a fallback path for the other case. Stock images match: `APP_HS_02A_*.bin`
+    begin `62 69 6e 00`, `APP_HS_02B_V1.8.bin` begins `42 49 4e 00`.
+
+  This is handled automatically: `source/Makefile` picks the magic from `$(model)`
+  (`CUSTOM_FORMAT_CMD` in the Fnirsi block), so `model=HS02` emits `bin` and `model=HS02B`
+  emits `BIN`. You cannot cross-flash by accident — the wrong magic is silently rejected
+  by the bootloader.
+
+## HS-02A vs HS-02B build targets
+
+Same PCB, different tip: **HS-02A takes F245 cartridges, HS-02B takes F210** (FNIRSI's own
+designations, ≈ JBC C245/C210 form factors; the two tips are NOT interchangeable). Confirmed
+same board by diffing `APP_HS_02A_V1.8` against `APP_HS_02B_V1.8` (same version, one day
+apart): peripheral reference counts match item for item (GPIOA 17/17, GPIOB 8/8, RCC 11/11,
+TIM3 3/3, TIM4 3/3). So the whole BSP transfers unchanged; only tip-dependent parameters vary.
+
+- `make model=HS02` → HS-02A (name kept for backwards compatibility) → `HS02_EN_firmware.bin`
+- `make model=HS02B` → HS-02B → `HS02B_EN_firmware.bin`
+- `MODEL=HS02B ./build-hs02.sh` for the one-shot script.
+- **`MODEL_HS02` is the FAMILY define, set for BOTH variants** — every existing
+  `#ifdef MODEL_HS02` (`Pins.h`, `I2CBB1.cpp`, `Font.h`, `MOVThread.cpp`, `PIDThread.cpp`)
+  is a shared-PCB concern and applies to both. `MODEL_HS02A` / `MODEL_HS02B` select only
+  the tip parameters in `configuration.h`, with an `#error` enforcing exactly one.
+
+⚠️ **HS-02B is UNVALIDATED — nobody on this fork owns the hardware.** Its parameters are
+deliberately conservative guesses, not tuned values: KP 40→20, KI 700→150, KD 8000→3000,
+integral clamp 30→10, power 100 W→65 W, max temp 450→400 °C. Rationale: F210 is the smaller
+cartridge, so less thermal mass → higher plant gain → controller gains must come down, which
+is also the safe direction (an under-tuned PID is sluggish rather than overshooting).
+`TIP_RESISTANCE` stays 25: F210's real value is unpublished (checked FNIRSI docs, manuals,
+reviews, IronOS discussion #1935) and is bounded to ≤4 Ω by the 100 W-at-20 V rating. It
+matters less than it looks — R only scales watts→PWM, giving
+`P_delivered = P_requested × (R_assumed / R_true)`, a pure gain on the controller output that
+is mathematically indistinguishable from scaling KP/KI/KD together. **Retuning absorbs any
+error in it, so do not "correct" it in isolation** — that would silently rescale loop gain.
+
+**HS-02B temperature model (stock RE, V1.8):** the B's thermocouple signal at the ADC is
+**~3.2× smaller** than the A's. The stock temperature function (`0x08007408` on A,
+`0x080073ec` on B) is otherwise identical. Only the calibration biases differ, and they
+encode the nominal counts at 140/240/340 °C: A `0x7F21/0x7E77/0x7DC4` = 223/393/572,
+B `0x7FBC/0x7F8B/0x7F42` = 68/117/190 (count = word − bias; bias = 0x8000 − nominal).
+Running the A's curve on a B therefore read a real ~540 °C as 200 °C, which a PR #10
+tester saw as a red-hot tip at a displayed 200. `ThermoModel.cpp` uses the B biases, and
+an uncalibrated B (0x8000 placeholder or erased page) runs on the B nominal curve, never
+the A's measured fallback. Other stock A/B differences in that path: A has a fourth
+anchor (770 counts at 440 °C) while B extrapolates its 240–340 segment; A averages 40
+samples and B 20; the ADC sample time is 0 (A) vs 5 (B), but IronOS uses 239.5 cycles on
+every channel. The V2.x dumps (B 2.0.1, A 2.1.1) don't contain this
+function: their app region is PanKleszcz's MSD dumper, not stock (see Full-flash dumps). The B nominal curve has not been checked with a thermometer. On the A, the
+nominal curve over-reads by 25–30 %, so if the B behaves the same, the error is on the
+safe side.
+
+**Build hygiene gotcha (fixed, but know why):** `Core/Gen/` holds generated sources
+(`macros.txt`, `Translation.*.cpp`) derived from the *model's* `configuration.h`, but unlike
+`Objects/` it is shared across models, and `macros.txt` used to depend only on `Makefile`.
+Building B after A therefore linked A's translation data into B's image. Now stamped with the
+model name so switching regenerates. This affected any two models in one tree (e.g. TS100 then
+TS80), so it is upstream-worthy, not Fnirsi-specific.
 
 ## Temperature control & calibration (branch `fix/hs02-pid-tuning`)
 
 - **Controller:** PID (`TIP_CONTROL_PID`), NOT the ARDC it shipped with. Field-tuned on an
-  HS-02A soldering XT60 connectors: KP=40, KI=300, KD=8000, `TIP_PID_INTEGRAL_LIMIT_SCALE 30`.
+  HS-02A soldering XT60 connectors: KP=40, KI=700, KD=8000, `TIP_PID_INTEGRAL_LIMIT_SCALE 30`
+  (authoritative values live in `Core/BSP/Fnirsi/configuration.h:185-188` — check there, not here).
   Requires the **conditional anti-windup** added to the shared PID in `PIDThread.cpp`
   (upstream-worthy): without it the integral rails to ± the clamp during heatup/overshoot
   and the system limit-cycles around the set point for minutes.
@@ -70,15 +136,27 @@ to work on it. General IronOS docs live in `Documentation/`.
      is REJECTED — the nominal curve over-reads ~25-30% (stock firmware itself shows 230 °C
      at a real 183 °C, hardware-verified). IronOS settings live below `0x0801F000`, so the
      stock page survives reflashing.
-  2. **Fallback:** measured 26 uV/°C constant, calibrated with solder melting points
-     (Sn45/Pb55: solidus 183 °C "blade can cut", liquidus ~227 °C "melts") — ~3× more
-     accurate than stock on an uncalibrated unit (+17 vs +47 °C at 183 °C real).
+  2. **Fallback:** a measured 36 uV/°C base through 250 °C, followed by continuous
+     piecewise corrections of 1.17× from 250–350 °C and 1.56× above 350 °C.
 - **Debug menu "Tip Cal" page** (17th page; home screen → long-press UP): shows the three
-  decoded cal counts + "In Use" / "Unused 26uV/C". NOTE: raw ASCII literals render garbled —
+  decoded cal counts + "In Use" / "Custom Curve". NOTE: raw ASCII literals render garbled —
   the small font only carries glyphs used by translations; UI text must go through
   `make_translation.py` (`get_constants()` SmallSymbol* entries or `get_debug_menu()`).
-- Stock PID for reference (from RE): incremental/velocity form, Kp=2.38 Ki=0.81 Kd=0.28
-  (doubles in the .data tail), gain-scheduled ×4.5/×3.0/×2.0 at 9/12/15 V PD tiers.
+- Stock PID for reference (from RE): incremental/velocity form. **HS-02A and HS-02B use
+  DIFFERENT gain sets** (verified by decoding both firmwares' double constant pools — so
+  the "02A/02B differ only in the soft-start ramp" claim in
+  `firmwares/HS-02_PID_FUN_08009f00_还原.md` is wrong):
+  - **HS-02A** (V1.8 & V2.1): Kp=2.38 Ki=0.81 Kd=0.28 (doubles at `0x080170d0`, in the
+    .data tail), gain-scheduled ×4.5/×3.0/×2.0 at 9/12/15 V PD tiers (`0x0800a24c`).
+  - **HS-02B** (V1.8, and V2.0.1 per the dump's app region, see caveat under Full-flash dumps): Kp=0.04 Ki=0.01 Kd=0.02 (doubles at `0x0800a1b0` in
+    V1.8, `0x0800a13c` in V2.0.1), with direct output clamps e≥100→100 % / e≤−20→0
+    (`0x0800a1d0`/`…1d8`) and Kp halved to 0.02 when setpoint < 200 °C. Tick fn
+    `FUN_08009ed0`; see `firmwares/HS-02_PID_FUN_08009f00_还原.md`.
+  - Neither gain set appears in the other machine's firmware — they are mutually exclusive.
+    Seen in three stock images (02A V1.8 + V2.1.0, 02B V1.8) plus the 02B V2.0.1 dump's app
+    region, which is not a pristine stock image (see Full-flash dumps). The split is
+    per-model and survives a version bump on the A side; that the B's does is likely but
+    not proven.
 
 ## UI architecture (IronOS)
 
@@ -116,3 +194,35 @@ button/interaction map, and the extracted boot logo. Key finding: the temperatur
 path (calibration, PID, factory defaults) is byte-identical V1.8↔V2.1; the only temp-relevant
 change in V2.1 is the accelerometer tilt-angle logic (a new 90° breakpoint affecting
 motion-sleep), which is why V2.1 "holds temperature more aggressively".
+
+### Full-flash dumps (`FLASH.BIN` 128K @`0x08000000` + `RAM.BIN` 24K + `SYSOPT.BIN` 20B)
+
+Two community dumps live under `firmwares/`: `Flash+Ram+Sysopt.HS02A.2.1.1/` and
+`hs202b-dump/` (the app region carries stock `HS-02B` / `V2.0.1` strings). They are the only
+source of the **bootloader** (first `0x5800`) and the stock settings page.
+
+- **They were made with @PanKleszcz's MSD dumper, not a stock feature.** It is his
+  "HS-02 USB MSD v0.0.x" tool: he posted v0.0.1 in Ralim/IronOS#2173 (2026-01-30) to recover
+  his bootloader, and these dumps show `v0.0.7` (A) / `v0.0.6` @`0x08008b8c` (B). It exposes a
+  FAT16 volume `HS-02 MEM` with `FLASH.BIN`/`RAM.BIN`/`SYSOPT.BIN` (VID `0x19F5` Nations). The
+  dumps' app region is **his tool**, not a pristine stock image. Both have the same vector
+  table (SP `0x20006000`, reset `0x08005f2d`), and it matches no stock `APP_*.bin`. It still
+  contains stock code and strings (`FNIRSI` / `HS-02x` / `V2.x.x`), so it looks built on top
+  of each model's stock firmware.
+  - **Trust:** the bootloader (`0x0000-0x5800`), the stock settings page (`0x0801F800`) and
+    `SYSOPT.BIN`. Flashing an app image does not rewrite them.
+  - **Don't treat as stock:** anything read from the app region (`0x5800-0x1F000`) or
+    `RAM.BIN`. That includes the V2.0.1 PID constants below (probably stock, not proven).
+    An earlier "2.1.0→2.1.1 is an official full recompile" conclusion compared stock 2.1.0
+    against this tool. Its forensics were LCP 0, 9.6 % aligned identity, and 52.8 % of 64 B
+    chunks relocated. It is void. The stock V1.8 temperature function (`ThermoModel.cpp`
+    header) also can't be found in these dumps, for the same reason.
+- **Bootloaders are one source base with a per-model magic constant** — see the case-sensitive
+  `bin`/`BIN` gotcha above. Otherwise the first ~15 KB is near-identical (a dozen data
+  pointers shifted `0x20`); real code divergence is confined to `0x4000-0x5000` (the MSD
+  flash-write path). `SYSOPT.BIN` is byte-identical across models (RDP off).
+- **Neither dumped unit had ever been user-calibrated**: the three cal words at `0x0801F858`
+  read `0x8000 0x8000 0x8000` on both — the placeholder our `ThermoModel` rejects.
+- **`RAM.BIN` says nothing about stock RAM use.** It was captured while the MSD dumper was
+  running. Only the low ~8 KB holds live data; from `0x20002000` up, entropy is 7.8–7.95
+  bits/byte. `SP=0x20006000` is the dumper's stack top, not a usage figure.
