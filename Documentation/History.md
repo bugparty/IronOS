@@ -1,4 +1,11 @@
 # Version Changes
+## v1.05
+
+- Recalibrate the FNIRSI HS-02 fallback tip-temperature curve from external thermometer measurements for substantially improved temperature accuracy.
+- Ramp setpoints above 350 °C at 5 °C/s to reduce high-temperature overshoot.
+- Show the live tip thermocouple voltage on the color home screen.
+- Refactor the color LCD driver to use framebuffer swapping.
+
 ## v1.02
 
 - Keep the FNIRSI HS-02 plus and minus button backlights on.
