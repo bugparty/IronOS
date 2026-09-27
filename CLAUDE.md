@@ -148,13 +148,15 @@ TS80), so it is upstream-worthy, not Fnirsi-specific.
   `firmwares/HS-02_PID_FUN_08009f00_还原.md` is wrong):
   - **HS-02A** (V1.8 & V2.1): Kp=2.38 Ki=0.81 Kd=0.28 (doubles at `0x080170d0`, in the
     .data tail), gain-scheduled ×4.5/×3.0/×2.0 at 9/12/15 V PD tiers (`0x0800a24c`).
-  - **HS-02B** (V1.8 **and V2.0.1**): Kp=0.04 Ki=0.01 Kd=0.02 (doubles at `0x0800a1b0` in
+  - **HS-02B** (V1.8, and V2.0.1 per the dump's app region, see caveat under Full-flash dumps): Kp=0.04 Ki=0.01 Kd=0.02 (doubles at `0x0800a1b0` in
     V1.8, `0x0800a13c` in V2.0.1), with direct output clamps e≥100→100 % / e≤−20→0
     (`0x0800a1d0`/`…1d8`) and Kp halved to 0.02 when setpoint < 200 °C. Tick fn
     `FUN_08009ed0`; see `firmwares/HS-02_PID_FUN_08009f00_还原.md`.
   - Neither gain set appears in the other machine's firmware — they are mutually exclusive.
-    Now confirmed across **four** firmwares (02A V1.8 + V2.1.0, 02B V1.8 + V2.0.1): the split
-    is per-model and persists across version bumps, it is not a version artefact.
+    Seen in three stock images (02A V1.8 + V2.1.0, 02B V1.8) plus the 02B V2.0.1 dump's app
+    region, which is not a pristine stock image (see Full-flash dumps). The split is
+    per-model and survives a version bump on the A side; that the B's does is likely but
+    not proven.
 
 ## UI architecture (IronOS)
 
@@ -196,23 +198,31 @@ motion-sleep), which is why V2.1 "holds temperature more aggressively".
 ### Full-flash dumps (`FLASH.BIN` 128K @`0x08000000` + `RAM.BIN` 24K + `SYSOPT.BIN` 20B)
 
 Two community dumps live under `firmwares/`: `Flash+Ram+Sysopt.HS02A.2.1.1/` and
-`hs202b-dump/` (= **HS-02B V2.0.1**, a build not otherwise available as an `APP_*.bin`).
-These are the only source of the **bootloader** (first `0x5800`) and the stock settings page.
+`hs202b-dump/` (the app region carries stock `HS-02B` / `V2.0.1` strings). They are the only
+source of the **bootloader** (first `0x5800`) and the stock settings page.
 
-- **They were produced by an official firmware feature, not a homebrew tool.** Stock builds
-  ship a debug USB MSD mode exposing a FAT16 volume `HS-02 MEM` with `FLASH.BIN`/`RAM.BIN`/
-  `SYSOPT.BIN` (VID `0x19F5` Nations). It is versioned and lives in the **app**, not the
-  bootloader: `HS-02 USB MSD v0.0.7` (02A 2.1.1), `v0.0.6` @`0x08008b8c` (02B V2.0.1).
-  Binary forensics on 2.1.0→2.1.1 (LCP 0, 9.6 % aligned identity, 52.8 % of 64 B chunks
-  verbatim-but-relocated, no constant-shift delta) says full recompile-from-source, i.e.
-  official — not a binary patch.
+- **They were made with @PanKleszcz's MSD dumper, not a stock feature.** It is his
+  "HS-02 USB MSD v0.0.x" tool: he posted v0.0.1 in Ralim/IronOS#2173 (2026-01-30) to recover
+  his bootloader, and these dumps show `v0.0.7` (A) / `v0.0.6` @`0x08008b8c` (B). It exposes a
+  FAT16 volume `HS-02 MEM` with `FLASH.BIN`/`RAM.BIN`/`SYSOPT.BIN` (VID `0x19F5` Nations). The
+  dumps' app region is **his tool**, not a pristine stock image. Both have the same vector
+  table (SP `0x20006000`, reset `0x08005f2d`), and it matches no stock `APP_*.bin`. It still
+  contains stock code and strings (`FNIRSI` / `HS-02x` / `V2.x.x`), so it looks built on top
+  of each model's stock firmware.
+  - **Trust:** the bootloader (`0x0000-0x5800`), the stock settings page (`0x0801F800`) and
+    `SYSOPT.BIN`. Flashing an app image does not rewrite them.
+  - **Don't treat as stock:** anything read from the app region (`0x5800-0x1F000`) or
+    `RAM.BIN`. That includes the V2.0.1 PID constants below (probably stock, not proven).
+    An earlier "2.1.0→2.1.1 is an official full recompile" conclusion compared stock 2.1.0
+    against this tool. Its forensics were LCP 0, 9.6 % aligned identity, and 52.8 % of 64 B
+    chunks relocated. It is void. The stock V1.8 temperature function (`ThermoModel.cpp`
+    header) also can't be found in these dumps, for the same reason.
 - **Bootloaders are one source base with a per-model magic constant** — see the case-sensitive
   `bin`/`BIN` gotcha above. Otherwise the first ~15 KB is near-identical (a dozen data
   pointers shifted `0x20`); real code divergence is confined to `0x4000-0x5000` (the MSD
   flash-write path). `SYSOPT.BIN` is byte-identical across models (RDP off).
 - **Neither dumped unit had ever been user-calibrated**: the three cal words at `0x0801F858`
   read `0x8000 0x8000 0x8000` on both — the placeholder our `ThermoModel` rejects.
-- **RAM is not tight on stock**: both dumps show live data only in the low ~8 KB; from
-  `0x20002000` up, entropy is 7.8–7.95 bits/byte (uninitialised). ≥16 KB of the 24 KB is free.
-  (An early "2.1.1 uses all RAM" read was wrong — `SP=0x20006000` is the stack-*top*
-  convention, not a usage figure.)
+- **`RAM.BIN` says nothing about stock RAM use.** It was captured while the MSD dumper was
+  running. Only the low ~8 KB holds live data; from `0x20002000` up, entropy is 7.8–7.95
+  bits/byte. `SP=0x20006000` is the dumper's stack top, not a usage figure.
