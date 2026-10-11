@@ -44,7 +44,12 @@ extern uint16_t tipSenseResistancex10Ohms;
  *
  * Stock converts ADC counts to degC with a piecewise-linear curve through these
  * points (the thermocouple's uV/C slope rises with temperature, so a single
- * constant slope reads increasingly high in the soldering range). IronOS keeps
+ * constant slope reads increasingly high in the soldering range). The curve starts at
+ * 0C for a count of 0, and stock then adds a constant 25C to get the tip temperature
+ * it displays and regulates, so the three points are tip temperatures of 165/265/365C.
+ * The A continues with a fourth, fixed point (770 counts = 440C on the curve); the B
+ * extrapolates its last segment. All of this is checked against the stock images
+ * running in tools/hs02-stock-emu. IronOS keeps
  * its own settings at 0x0801E000-0x0801F000, so the stock page survives flashing
  * IronOS and we can reuse the factory calibration directly.
  */
@@ -55,12 +60,15 @@ constexpr uint32_t stockCalBias140 = 0x7FBC;
 constexpr uint32_t stockCalBias240 = 0x7F8B;
 constexpr uint32_t stockCalBias340 = 0x7F42;
 constexpr int32_t  minSaneCount140 = 20;
+constexpr uint32_t stockCount440   = 0; // none: the B extrapolates above the 340C point
 #else
 constexpr uint32_t stockCalBias140 = 0x7F21;
 constexpr uint32_t stockCalBias240 = 0x7E77;
 constexpr uint32_t stockCalBias340 = 0x7DC4;
 constexpr int32_t  minSaneCount140 = 50;
+constexpr uint32_t stockCount440   = 770;
 #endif
+constexpr uint32_t stockCurveOffsetCx10 = 250; // stock tip temperature = curve + 25C
 
 uint32_t interpolateFallbackTempCx10(uint32_t tipuV, uint32_t loweruV, uint32_t lowerTempCx10, uint32_t upperuV, uint32_t upperTempCx10) {
   return lowerTempCx10 + ((tipuV - loweruV) * (upperTempCx10 - lowerTempCx10)) / (upperuV - loweruV);
@@ -182,19 +190,22 @@ TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
     //            = uV * (233472/33) / 10000 = uV * 0.70749 for the 57x gain stage
     const uint32_t countX10 = (stockRawTipuV(tipuVDelta) * ((OP_AMP_GAIN_STAGE * 4096) / 33)) / 10000;
 
-    // Stock piecewise-linear curve; last segment also extrapolates above 340C.
+    // Stock piecewise-linear curve.
     uint32_t tempX10;
     if (countX10 <= adcCount140 * 10) {
       tempX10 = (countX10 * 140) / adcCount140;
     } else if (countX10 <= adcCount240 * 10) {
       tempX10 = 1400 + ((countX10 - adcCount140 * 10) * 100) / (adcCount240 - adcCount140);
+    } else if (stockCount440 > adcCount340 && countX10 >= adcCount340 * 10) {
+      tempX10 = 3400 + ((countX10 - adcCount340 * 10) * 100) / (stockCount440 - adcCount340);
     } else {
       tempX10 = 2400 + ((countX10 - adcCount240 * 10) * 100) / (adcCount340 - adcCount240);
     }
-    // The stock curve outputs ABSOLUTE tip temperature, but this function must return
-    // the delta above the handle; the caller adds the handle temperature back on top.
-    // That "handle" value is the MCU die sensor (~41-43C, see below), so cancel the
-    // actual value rather than assuming 25C, which read ~17C high.
+    tempX10 += stockCurveOffsetCx10;
+    // That is the ABSOLUTE tip temperature as stock shows it, but this function must
+    // return the delta above the handle; the caller adds the handle temperature back on
+    // top. That "handle" value is the MCU die sensor (~41-43C, see below), so cancel the
+    // actual value.
     const uint32_t handleTempCx10 = getHandleTemperature(0);
     return (tempX10 > handleTempCx10) ? (tempX10 - handleTempCx10) : 0;
   }

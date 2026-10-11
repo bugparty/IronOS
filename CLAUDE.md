@@ -123,6 +123,22 @@ stock-curve path on both models; the A's measured fallback curve was fitted to
 offset-corrected µV and still uses them. CJC calibration is not automatic (default off), so
 "Tip O" is 900 unless the owner ran it.
 
+**Stock tip temperature = curve + a constant 25 °C.** The curve gives 0 °C at 0 counts; the
+stock runtime init stores `25.0` next to the measured value, and the PID error, the display
+value and the over-temperature check all use curve + 25. So the three calibration points
+are tip temperatures of 165/265/365 °C, not 140/240/340. `ThermoModel.cpp` adds the same
+25 °C (`stockCurveOffsetCx10`); the second B test build left it out and read 25 °C low.
+
+**`tools/hs02-stock-emu/` runs the stock V1.8 images in Unicorn** (boot from reset,
+hand-fired timer interrupt, ADC read replaced by a chosen count). `stock_emu.py IMAGE`
+prints the stock temperature per ADC count; `compare.py FIRMWARE_DIR` builds the real
+`ThermoModel.cpp` for the host and checks it against both stock images for every count
+(B within 0.74 °C, A within 0.31 °C). Run `compare.py` after touching the stock-curve
+path. Prefer asking the emulator over reading disassembly: it found the 25 °C constant,
+confirmed nothing rewrites it, and caught a stock A glitch (a count exactly equal to the
+240 °C point reads ~10 °C high) that hand-reading had missed. It answers "what does stock
+compute", never "is stock right for a real tip".
+
 **Build hygiene gotcha (fixed, but know why):** `Core/Gen/` holds generated sources
 (`macros.txt`, `Translation.*.cpp`) derived from the *model's* `configuration.h`, but unlike
 `Objects/` it is shared across models, and `macros.txt` used to depend only on `Makefile`.
