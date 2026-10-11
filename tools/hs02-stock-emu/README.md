@@ -31,6 +31,11 @@ What it found (V1.8, both models):
 - Stock A sends a count exactly equal to its 240 °C point down the last segment, so that
   single count reads high. IronOS does not copy this.
 
+Where IronOS differs from stock on purpose: an HS-02B that was never calibrated (cal words
+`0x8000` ×3) runs the nominal curve without the constant 25 °C, because a tester's unit
+melted 60/40 solder at a curve value of 190–200 °C, which stock would show as 215–225 °C.
+`compare.py` expects exactly that 25 °C gap for that case and a match for calibrated units.
+
 What it cannot tell: anything physical. Whether the stock curve matches a real tip, what a
 cold tip reads at the ADC, and when stock samples relative to the heater PWM all still
 need hardware.

@@ -127,13 +127,24 @@ offset-corrected µV and still uses them. CJC calibration is not automatic (defa
 stock runtime init stores `25.0` next to the measured value, and the PID error, the display
 value and the over-temperature check all use curve + 25. So the three calibration points
 are tip temperatures of 165/265/365 °C, not 140/240/340. `ThermoModel.cpp` adds the same
-25 °C (`stockCurveOffsetCx10`); the second B test build left it out and read 25 °C low.
+25 °C (`stockCurveOffsetCx10`) **only when a real stock calibration is in use**, because
+that calibration was done with the 25 °C included.
+
+**An uncalibrated HS-02B deliberately reads 25 °C below stock.** It runs the nominal curve
+without the constant. Field data (@Humayung, PR #13, 2026-10-11, build cf88503e, cold
+"Tip R" 0): 60/40 solder just melts at a curve value of 190–200 °C, so stock itself would
+show 215–225 °C there, i.e. the nominal B curve over-reads like the A's does. This is a
+one-unit, one-temperature fit. The MCU die sensor (`getHandleTemperature`, ~41–43 °C) is
+the only "handle temperature" on this board, there is no NTC, and using it instead of the
+constant would read higher still. Replace the fit when someone measures a B against a
+thermometer.
 
 **`tools/hs02-stock-emu/` runs the stock V1.8 images in Unicorn** (boot from reset,
 hand-fired timer interrupt, ADC read replaced by a chosen count). `stock_emu.py IMAGE`
 prints the stock temperature per ADC count; `compare.py FIRMWARE_DIR` builds the real
 `ThermoModel.cpp` for the host and checks it against both stock images for every count
-(B within 0.74 °C, A within 0.31 °C). Run `compare.py` after touching the stock-curve
+(B within 0.74 °C, A within 0.31 °C; for the uncalibrated B it expects the 25 °C gap
+above). Run `compare.py` after touching the stock-curve
 path. Prefer asking the emulator over reading disassembly: it found the 25 °C constant,
 confirmed nothing rewrites it, and caught a stock A glitch (a count exactly equal to the
 240 °C point reads ~10 °C high) that hand-reading had missed. It answers "what does stock

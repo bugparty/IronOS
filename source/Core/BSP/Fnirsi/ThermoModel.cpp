@@ -49,7 +49,14 @@ extern uint16_t tipSenseResistancex10Ohms;
  * it displays and regulates, so the three points are tip temperatures of 165/265/365C.
  * The A continues with a fourth, fixed point (770 counts = 440C on the curve); the B
  * extrapolates its last segment. All of this is checked against the stock images
- * running in tools/hs02-stock-emu. IronOS keeps
+ * running in tools/hs02-stock-emu.
+ *
+ * A unit calibrated on stock was calibrated with that 25C included, so it gets the
+ * stock sum exactly. An uncalibrated HS-02B runs the nominal curve WITHOUT the 25C:
+ * with it, stock over-reads (one unit, cold reading 0 counts, melted 60/40 solder at
+ * a curve value of 190-200C, which stock would show as 215-225C). Leaving the 25C off
+ * is a one-unit, one-temperature fit, not a model; replace it once somebody measures
+ * a B against a thermometer. IronOS keeps
  * its own settings at 0x0801E000-0x0801F000, so the stock page survives flashing
  * IronOS and we can reuse the factory calibration directly.
  */
@@ -100,6 +107,7 @@ bool     factoryCalValid   = false;
 uint32_t adcCount140       = 0; // Raw 12-bit ADC counts at the three factory reference points
 uint32_t adcCount240       = 0;
 uint32_t adcCount340       = 0;
+uint32_t curveOffsetCx10   = 0; // stockCurveOffsetCx10 once a real stock calibration is in use
 
 // The stock curve wants the raw reading, but tipuVDelta already had the CJC offset
 // setting removed. That setting defaults to 900uV = 64 stock counts, which is nearly the
@@ -148,7 +156,7 @@ void loadFactoryCal() {
   // in all three words, decoding to the nominal curve. On the A, hardware showed
   // that curve over-reads by 25-30%, so placeholders are rejected in favour of the
   // measured fallback. The B has no measured fallback yet and keeps the nominal
-  // curve set above, which is what the stock B firmware uses.
+  // curve set above, without the stock 25C constant (see the header comment).
   if ((page[0x16] & 0xFFFF) == 0x8000 && (page[0x17] & 0xFFFF) == 0x8000 && (page[0x18] & 0xFFFF) == 0x8000) {
     return;
   }
@@ -160,6 +168,7 @@ void loadFactoryCal() {
     return;
   }
   factoryCalValid = true;
+  curveOffsetCx10 = stockCurveOffsetCx10;
 }
 } // namespace
 
@@ -201,11 +210,11 @@ TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
     } else {
       tempX10 = 2400 + ((countX10 - adcCount240 * 10) * 100) / (adcCount340 - adcCount240);
     }
-    tempX10 += stockCurveOffsetCx10;
-    // That is the ABSOLUTE tip temperature as stock shows it, but this function must
-    // return the delta above the handle; the caller adds the handle temperature back on
-    // top. That "handle" value is the MCU die sensor (~41-43C, see below), so cancel the
-    // actual value.
+    tempX10 += curveOffsetCx10;
+    // That is the ABSOLUTE tip temperature (for a calibrated unit, exactly what stock
+    // shows), but this function must return the delta above the handle; the caller adds
+    // the handle temperature back on top. That "handle" value is the MCU die sensor
+    // (~41-43C, see below), so cancel the actual value.
     const uint32_t handleTempCx10 = getHandleTemperature(0);
     return (tempX10 > handleTempCx10) ? (tempX10 - handleTempCx10) : 0;
   }
