@@ -1,4 +1,13 @@
 # Version Changes
+## v1.06
+
+- Translate the READY / SET / BOOST / SLEEP labels on the FNIRSI HS-02 colour home, soldering and sleep screens. Russian and Swedish are included; other languages keep the English labels until they add a `gaugeLabels` section.
+- Wrap or scroll full-screen warnings on the HS-02 instead of cutting them off at the edge of the 160×80 display.
+- Fix Russian and Swedish menu names that overflowed the screen or were never translated.
+- Centre the temperature on the HS-02 sleep screen.
+- Publish Russian and Swedish HS-02 builds with the release, plus an archive of every other language.
+- Add `tools/hs02-lang-preview`, which renders every HS-02 screen for a given language on a PC.
+
 ## v1.05
 
 - Recalibrate the FNIRSI HS-02 fallback tip-temperature curve from external thermometer measurements for substantially improved temperature accuracy.

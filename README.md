@@ -58,7 +58,7 @@ The links in the table below allow to download available builds directly:
 
 |        Device         | Stable Release |
 |:---------------------:|:--------------:|
-| FNIRSI HS-02          | [HS02_EN_firmware.bin ](https://github.com/bugparty/IronOS/releases/download/v1/HS02_EN_firmware.bin) |
+| FNIRSI HS-02A         | [English](https://github.com/bugparty/IronOS/releases/latest/download/HS02_EN_firmware.bin), [Русский](https://github.com/bugparty/IronOS/releases/latest/download/HS02_RU_firmware.bin), [Svenska](https://github.com/bugparty/IronOS/releases/latest/download/HS02_SV_firmware.bin), [other languages](https://github.com/bugparty/IronOS/releases/latest/download/HS02_all_languages.zip) |
 
 [^changelog]:
 
