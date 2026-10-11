@@ -4,6 +4,8 @@
  *  Created on: 1 May 2021
  *      Author: Ralim, MrTick
  */
+#include "BSP.h"
+#include "Settings.h"
 #include "Setup.h"
 #include "TipThermoModel.h"
 #include "Types.h"
@@ -35,6 +37,10 @@ extern uint16_t tipSenseResistancex10Ohms;
  * The B's thermocouple signal at the ADC is ~3.2x smaller than the A's for the same
  * tip temperature, so the A's curve read a red-hot B tip as ~200C. Everything else
  * in that function is identical, and the ADC read and Vin divider match too.
+ *
+ * Stock feeds the RAW count into the curve: one ADC conversion, then straight into the
+ * compares below, with no zero offset removed first. IronOS removes its CJC offset
+ * setting before it calls us, so stockRawTipuV() puts that back.
  *
  * Stock converts ADC counts to degC with a piecewise-linear curve through these
  * points (the thermocouple's uV/C slope rises with temperature, so a single
@@ -86,6 +92,21 @@ bool     factoryCalValid   = false;
 uint32_t adcCount140       = 0; // Raw 12-bit ADC counts at the three factory reference points
 uint32_t adcCount240       = 0;
 uint32_t adcCount340       = 0;
+
+// The stock curve wants the raw reading, but tipuVDelta already had the CJC offset
+// setting removed. That setting defaults to 900uV = 64 stock counts, which is nearly the
+// whole 68-count signal of an HS-02B at 140C (and 29% of an A's), so a stock-calibrated
+// unit read far too low and by a different amount on every unit that had run the CJC
+// calibration. A reading that was clamped to zero lies somewhere below the offset, so
+// take that one from the ADC (same integer steps as convertTipRawADCTouV).
+uint32_t stockRawTipuV(uint32_t tipuVDelta) {
+  const uint32_t offsetuV = getSettingValue(SettingsOptions::CalibrationOffset);
+  if (tipuVDelta > 0) {
+    return tipuVDelta + offsetuV;
+  }
+  const uint32_t rawuV = (((uint32_t)getTipRawTemp(0) * ADC_VDD_MV * 10) / ADC_MAX_READING) * 100 / OP_AMP_GAIN_STAGE;
+  return (rawuV < offsetuV) ? rawuV : offsetuV;
+}
 
 #ifdef MODEL_HS02B
 // The HS-02A fallback curve below was measured on an F245 tip and reads a B far too
@@ -159,7 +180,7 @@ TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
     // cancels out since the same constants were used to produce tipuVDelta.
     //   countX10 = uV * OP_AMP_GAIN_STAGE * 4096 * 10 / (ADC_VDD_MV * 1000)
     //            = uV * (233472/33) / 10000 = uV * 0.70749 for the 57x gain stage
-    const uint32_t countX10 = (tipuVDelta * ((OP_AMP_GAIN_STAGE * 4096) / 33)) / 10000;
+    const uint32_t countX10 = (stockRawTipuV(tipuVDelta) * ((OP_AMP_GAIN_STAGE * 4096) / 33)) / 10000;
 
     // Stock piecewise-linear curve; last segment also extrapolates above 340C.
     uint32_t tempX10;

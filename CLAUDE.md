@@ -112,6 +112,17 @@ function: their app region is PanKleszcz's MSD dumper, not stock (see Full-flash
 nominal curve over-reads by 25–30 %, so if the B behaves the same, the error is on the
 safe side.
 
+**The stock curve takes RAW counts — do not feed it offset-corrected µV.** Stock does one
+ADC conversion (`0x080096a4` on B) and goes straight into the curve; nothing removes a zero
+offset. IronOS subtracts the "CJC offset" setting (`CalibrationOffset`, debug page "Tip O")
+before it calls `convertuVToDegCx10()`. Its default is 900 µV = 64 stock counts: almost the
+B's whole 68-count signal at 140 °C, and 29 % of the A's. The first B test build did that,
+so a displayed 300 °C regulated where stock would show ~388 °C, and two testers disagreed
+by 80 °C (PR #13). `stockRawTipuV()` in `ThermoModel.cpp` adds the offset back for the
+stock-curve path on both models; the A's measured fallback curve was fitted to
+offset-corrected µV and still uses them. CJC calibration is not automatic (default off), so
+"Tip O" is 900 unless the owner ran it.
+
 **Build hygiene gotcha (fixed, but know why):** `Core/Gen/` holds generated sources
 (`macros.txt`, `Translation.*.cpp`) derived from the *model's* `configuration.h`, but unlike
 `Objects/` it is shared across models, and `macros.txt` used to depend only on `Makefile`.
