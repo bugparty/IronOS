@@ -7,7 +7,9 @@ ALL_PINECIL_MODELS=Pinecil
 ALL_PINECIL_V2_MODELS=Pinecilv2
 ALL_MHP30_MODELS=MHP30
 ALL_SEQURE_MODELS=S60 S60P T55
-ALL_FNIRSI_MODELS=HS02
+# HS02 == the HS-02A variant (name kept for backwards compatibility with existing
+# scripts/docs). HS02B is the F210-tipped variant; see Core/BSP/Fnirsi/configuration.h.
+ALL_FNIRSI_MODELS=HS02 HS02B
 ALL_MODELS=$(ALL_MINIWARE_MODELS) $(ALL_PINECIL_MODELS) $(ALL_MHP30_MODELS) $(ALL_PINECIL_V2_MODELS) $(ALL_SEQURE_MODELS) $(ALL_FNIRSI_MODELS)
 
 ifneq ($(model),$(filter $(model),$(ALL_MODELS)))
@@ -327,7 +329,27 @@ CPUFLAGS=-mcpu=cortex-m4  \
 				 -mfpu=fpv4-sp-d16 \
          -mfloat-abi=hard
 
+# A/B variant split.
+#
+# MODEL_$(model) is defined globally further down, so model=HS02 already yields
+# MODEL_HS02 and model=HS02B already yields MODEL_HS02B. We add the *other* half of
+# each pair here so that:
+#   - MODEL_HS02  is the FAMILY define, set for BOTH variants. Every existing
+#     `#ifdef MODEL_HS02` (Pins.h, I2CBB1.cpp, Font.h, MOVThread.cpp, PIDThread.cpp)
+#     keeps applying to the B build -- these are shared-PCB concerns, not variant ones.
+#   - MODEL_HS02A / MODEL_HS02B select only the tip-dependent parameters.
+#
+# The header magic is case-sensitive and differs per bootloader: the HS-02A bootloader
+# compares 'b','i','n' and the HS-02B bootloader compares 'B','I','N' (verified by
+# diffing both full flash dumps -- identical code, three differing CMP immediates).
+# Getting this wrong means the bootloader silently rejects the image.
+ifeq ($(model),HS02B)
+DEV_GLOBAL_DEFS+=-D MODEL_HS02
+CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py BIN
+else
+DEV_GLOBAL_DEFS+=-D MODEL_HS02A
 CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py bin
+endif
 
 SMALL_FONT=default_12x16
 LARGE_FONT=default_24x32

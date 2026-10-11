@@ -29,6 +29,7 @@ jobs:
             "T55",
             "TS101",
             "HS02",
+            "HS02B",
           ]
       fail-fast: true
 
