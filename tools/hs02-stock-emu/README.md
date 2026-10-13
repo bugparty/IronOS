@@ -15,13 +15,19 @@ this fork owns an HS-02B, so this is how the B's temperature model was checked.
   their real rates, the heater PWM register drives a two-mass model of the tip, and the
   model's temperature comes back through the ADC. `--load START:STOP:WATTS` pulls heat
   from the tip, `--volts`, `--power` and `--setpoint` change the conditions, `--plot`
-  and `--csv` save the run. See "Stock temperature control" below.
+  and `--csv` save the run. `--touch START:STOP` presses the tip on a large cold joint.
+  See "Stock temperature control" below.
+- `compare_control.py IMAGE` runs the same tip and scenario under the stock controller
+  and under this fork's PID. The fork's side is the real `Core/Threads/PIDThread.cpp` and
+  `Core/Src/power.cpp`, built for the host with the real Fnirsi `configuration.h` and
+  stepped at the firmware's 20 Hz frame. See "Stock against this fork" below.
 
 ```
 pip install unicorn            # and matplotlib for control_sim.py --plot
 ./stock_emu.py APP_HS_02B_V1.8_250218.bin --counts 0,68,117,190
 ./compare.py "../../Development Resources/firmwares"
 ./control_sim.py APP_HS_02A_V1.8_250217.bin --load 14:18:15 --plot a.png
+./compare_control.py APP_HS_02A_V1.8_250217.bin --plot compare.png
 ```
 
 The stock images are FNIRSI's and are not in this repository. The function addresses in
@@ -89,6 +95,43 @@ Where they differ, which is more than the gains:
 What the loop simulation cannot tell: heat-up time, the size of the overshoot at the tip
 surface and the ringing all depend on the tip model, whose heat capacities and thermal
 resistances are guesses. Fit them to a recorded heat-up before reading numbers off a plot.
+
+## Stock against this fork
+
+`compare_control.py` heats the model tip to 350 °C and at 12 s presses it for 10 s on a
+cold joint (about 3 g of copper with solder on it: ~100 W cold, ~14 W once warm). Both
+controllers see the same ADC resolution. Default settings unless noted, 20 V:
+
+| | HS-02A stock | HS-02A fork | HS-02B stock | HS-02B fork |
+|---|---|---|---|---|
+| Power setting | 65 | 60 W | 65 | 40 W |
+| Thermocouple within 10 °C of 350 | 9.2 s | 5.5 s | 1.4 s | 1.7 s |
+| Highest reading while heating up | 341 °C | 354 °C | 371 °C | 356 °C |
+| Idle | 341 °C | 351 °C | 350 °C | 350 °C |
+| Joint reaches 220 °C | 9.0 s | 7.2 s | 7.4 s | 8.2 s |
+| Heater power, first 3 s on the joint | 36 W | 43 W | 48 W | 45 W |
+| Thermocouple at the end of the joint | 322 °C | 346 °C | 351 °C | 342 °C |
+| Highest reading after lifting off | 342 °C | 355 °C | 365 °C | 355 °C |
+
+- **HS-02A:** the stock P-only law never reaches the setpoint and ends the joint 28 °C below it.
+  Raising its power setting to 100 changes nothing on the joint (still 36 W, 9.0 s),
+  because its output is limited by the gain, not by the cap. The fork holds the
+  thermocouple within a few °C; at a 100 W limit it heats up in 3.1 s instead of 7.9 s
+  and the joint reaches 220 °C in 6.9 s.
+- **HS-02B:** stock heats a little faster and holds 350 °C on the joint, but overshoots
+  by 21 °C on heat-up and 15 °C after lifting off, and its slow integrator lets the
+  thermocouple fall to 297 °C at first contact (fork: 322 °C). The fork's B gains are
+  deliberately low: it overshoots by 6 °C, but droops about 8 °C under the sustained
+  load and delivers less power, also at its 65 W maximum (8.1 s against 7.4 s).
+- **The fork's output is noisy at idle.** The PID works in whole °C at 20 Hz, so a 1 °C
+  step in the reading moves the derivative term by 16 W (A) or 6 W (B) for one frame.
+  Heater power swings by about 25 W (A) and 13 W (B) from frame to frame where stock
+  moves 1–3 W. The tip body follows by under 1.5 °C in the model.
+
+The fork assumes a 2.5 Ω heater on both models. The model tips are 3.0 Ω (A) and 2.0 Ω
+(B), so its "60 W" is 50 W on the A and its "40 W" is 50 W on the B. All of this is one
+assumed tip and one assumed joint: it compares two control laws on the same plant and
+does not predict a real iron.
 
 Peripherals are plain memory. A status register polled repeatedly from one place has its
 value flipped every 64 polls, which gets the firmware through its wait loops (timer

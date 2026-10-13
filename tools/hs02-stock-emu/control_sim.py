@@ -9,6 +9,9 @@ code; only the tip is made up.
     ./control_sim.py APP_HS_02B_V1.8_250218.bin
     ./control_sim.py APP_HS_02A_V1.8_250217.bin --load 12:16:20 --plot a.png
     ./control_sim.py APP_HS_02A_V1.8_250217.bin --volts 12 --power 100 --csv a.csv
+    ./control_sim.py APP_HS_02A_V1.8_250217.bin --touch 12:22
+
+compare_control.py runs the same tip and scenario under this fork's own PID code.
 
 The tip model is two heat capacities (heater with the thermocouple, and the tip body).
 Its defaults are guesses for an F210 / F245 cartridge, NOT measurements: heat-up time,
@@ -64,15 +67,64 @@ class Tip:
         self.r_heater_tip, self.r_tip_air = r_heater_tip, r_tip_air
         self.ohms, self.ambient = ohms, ambient
         self.heater = self.body = ambient
-        self.load = 0.0  # extra heat drawn from the tip body, e.g. a joint
+        self.load = 0.0  # constant heat drawn from the tip body
+        self.workpiece = None  # a Workpiece the tip may be touching
+        self.touching = False
+        self.drawn = 0.0  # heat leaving the tip body for the load and the workpiece, W
 
     def step(self, dt, volts, duty):
         power = volts * volts / self.ohms * duty
         flow = (self.heater - self.body) / self.r_heater_tip
-        loss = (self.body - self.ambient) / self.r_tip_air + self.load
+        self.drawn = self.load
+        if self.workpiece:
+            self.drawn += self.workpiece.step(dt, self.body if self.touching else None)
+        loss = (self.body - self.ambient) / self.r_tip_air + self.drawn
         self.heater += dt * (power - flow) / self.c_heater
         self.body += dt * (flow - loss) / self.c_tip
         return power
+
+    def at(self, time, loads=(), touches=()):
+        """Apply the scenario for this moment."""
+        self.load = sum(watts for start, stop, watts in loads if start <= time < stop)
+        self.touching = any(start <= time < stop for start, stop in touches)
+
+
+class Workpiece:
+    """A large joint: a lump of metal with solder on it, pressed against the tip.
+
+    The defaults are a guess at an XT60 pin with its wire (about 3 g of copper): cold
+    it takes around 100 W from a 350 C tip, once warm about 14 W, which is in the range
+    this fork's notes report for that joint. The solder's latent heat is taken up at
+    its melting point. J/K, K/W, joules.
+    """
+
+    def __init__(
+        self,
+        c=1.2,
+        r_contact=3.0,
+        r_air=20.0,
+        solder_j=10.0,
+        melt_c=183.0,
+        ambient=25.0,
+    ):
+        self.c, self.r_contact, self.r_air = c, r_contact, r_air
+        self.solder_j, self.melt_c, self.ambient = solder_j, melt_c, ambient
+        self.temp = ambient
+        self.melted_j = 0.0
+
+    def step(self, dt, tip_c):
+        """Advance by dt; tip_c is None when the tip is not touching. Returns watts taken."""
+        taken = (tip_c - self.temp) / self.r_contact if tip_c is not None else 0.0
+        energy = (taken - (self.temp - self.ambient) / self.r_air) * dt
+        melting = (
+            energy > 0 and self.temp >= self.melt_c and self.melted_j < self.solder_j
+        )
+        freezing = energy < 0 and self.temp <= self.melt_c and self.melted_j > 0
+        if melting or freezing:
+            self.melted_j = min(max(self.melted_j + energy, 0.0), self.solder_j)
+        else:
+            self.temp += energy / self.c
+        return taken
 
 
 class ControlLoop:
@@ -149,13 +201,17 @@ class ControlLoop:
             duty=duty,
             watts=watts,
             output=firmware.double(self.model["output"]),
-            load_w=tip.load,
+            load_w=tip.drawn,
+            work_c=tip.workpiece.temp if tip.workpiece else tip.ambient,
         )
 
 
-def simulate(path, seconds, volts=20.0, setpoint=None, power=None, loads=(), tip=None):
+def simulate(
+    path, seconds, volts=20.0, setpoint=None, power=None, loads=(), touches=(), tip=None
+):
     loop = ControlLoop(path, volts)
     plant = Tip(**{**loop.model["tip"], **(tip or {})})
+    plant.workpiece = Workpiece() if touches else None
     loop.press_ok()  # leave the start screen; the iron is asleep
     loop.wait(0.5)
     if power:
@@ -166,7 +222,7 @@ def simulate(path, seconds, volts=20.0, setpoint=None, power=None, loads=(), tip
     rows = []
     for index in range(round(seconds / CONTROL_PERIOD)):
         time = index * CONTROL_PERIOD
-        plant.load = sum(watts for start, stop, watts in loads if start <= time < stop)
+        plant.at(time, loads, touches)
         rows.append(loop.row(time, plant, *loop.period(plant)))
         if index == 20 and not loop.heating():
             sys.exit("the firmware did not enter its heating state")
@@ -192,7 +248,9 @@ def plot(rows, title, path):
     top.legend(loc="lower right")
     top.grid(alpha=0.3)
     bottom.plot(time, [row["watts"] for row in rows], color="tab:red", label="heater W")
-    bottom.plot(time, [row["load_w"] for row in rows], color="tab:gray", label="load W")
+    bottom.plot(
+        time, [row["load_w"] for row in rows], color="tab:gray", label="drawn W"
+    )
     bottom.set_ylabel("W")
     bottom.set_xlabel("s since the OK button was released")
     bottom.legend(loc="upper right")
@@ -204,6 +262,11 @@ def plot(rows, title, path):
 def parse_load(text):
     start, stop, watts = (float(part) for part in text.split(":"))
     return start, stop, watts
+
+
+def parse_touch(text):
+    start, stop = (float(part) for part in text.split(":"))
+    return start, stop
 
 
 def main():
@@ -221,6 +284,14 @@ def main():
         metavar="START:STOP:WATTS",
         help="heat drawn from the tip body between two times; may be repeated",
     )
+    parser.add_argument(
+        "--touch",
+        type=parse_touch,
+        action="append",
+        default=[],
+        metavar="START:STOP",
+        help="press the tip on a large cold joint between two times; may be repeated",
+    )
     for name in ("c_heater", "c_tip", "r_heater_tip", "r_tip_air", "ohms"):
         parser.add_argument(f"--{name}", type=float, help="override the assumed tip")
     parser.add_argument("--csv", help="write every control period to this file")
@@ -236,6 +307,7 @@ def main():
         args.setpoint,
         args.power,
         args.load,
+        args.touch,
         tip,
     )
     name = loop.firmware.model["name"]
