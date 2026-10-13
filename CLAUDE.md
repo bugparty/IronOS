@@ -130,6 +130,16 @@ are tip temperatures of 165/265/365 °C, not 140/240/340. `ThermoModel.cpp` adds
 25 °C (`stockCurveOffsetCx10`) **only when a real stock calibration is in use**, because
 that calibration was done with the 25 °C included.
 
+**The whole stock reading, per call** (A `0x08007408`, B `0x080073ec`): one 12-bit
+conversion of ADC channel 2, the piecewise-linear curve above, then a moving average of
+40 curve values on the A and 20 on the B. The latest value and the average are both kept;
+the A's controller and both displays use the average, the B's controller the latest. It
+runs every 10 ms while heating, 200 µs (A) or 300 µs (B) after the heater is switched
+off. A count above 4000 for about 50 periods means "no tip" and stops the heater. The
+stock display then pulls the value 10 °C towards the setpoint, shows exactly the setpoint
+within ±10 °C and holds it while the tip falls up to ~30 °C, so never compare a stock
+DISPLAY with a thermometer as if it were the measurement.
+
 **An uncalibrated HS-02B deliberately reads 25 °C below stock.** It runs the nominal curve
 without the constant. Field data (@Humayung, PR #13, 2026-10-11, build cf88503e, cold
 "Tip R" 0): 60/40 solder just melts at a curve value of 190–200 °C, so stock itself would
