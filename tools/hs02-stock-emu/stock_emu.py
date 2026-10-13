@@ -31,10 +31,17 @@ from unicorn.arm_const import (
 APP_BASE = 0x08005800  # the first 0x5800 of flash is the bootloader, not in APP_ images
 HEADER_LEN = 16  # "bin\0"/"BIN\0" + payload length, added for the MSD bootloader
 RETURN_TRAP = 0x08000100  # unused bootloader space: where hand-made calls return to
-TICK_VECTOR = 45  # IRQ 29, the timer interrupt that runs the stock tick scheduler
+TICK_VECTOR = (
+    45  # IRQ 29 (TIM3), the 100 us interrupt that runs the stock tick scheduler
+)
+TIP_CHANNEL = 2  # ADC channel of the tip thermocouple amplifier
+VIN_CHANNEL = (
+    9  # ADC channel of the input voltage divider (count = V / 11 / 3.3 * 4095)
+)
 
 # Addresses in the V1.8 images (APP_HS_02A_V1.8_250217 / APP_HS_02B_V1.8_250218).
-#   adc_read  one ADC conversion, count returned in r0 (replaced by our value)
+#   adc_read  one ADC conversion of the channel in r0, count returned in r0 (replaced by
+#             our value for that channel)
 #   temp_fn   count -> temperature, with a moving average (20 samples on B, 40 on A)
 #   runtime   +0x18 averaged curve temp, +0x20 tip temperature the firmware acts on,
 #             +0x30 latest curve temp, +0x38 the constant added on top (all doubles)
@@ -55,9 +62,13 @@ MODELS = {
         settings=0x20000430,
     ),
 }
-# GPIO input registers. Buttons are active low with pull-ups, so idle is all ones.
-FIXED_INPUTS = {0x40010808: 0xFFFF, 0x40010C08: 0xFFFF}
+# GPIOA/GPIOB input data registers (+0x10 on the N32L40x, not the STM32F1's +0x08).
+# Buttons are active low with pull-ups, so idle is all ones.
+FIXED_INPUTS = {0x40010810: 0xFFFF, 0x40010C10: 0xFFFF}
 PUSH_R4_R8_LR = bytes.fromhex("2de9f041")  # first instruction of both temp functions
+# The interrupt handlers read their timer's status and interrupt-enable registers on
+# every tick. Those are not wait loops and must not be flipped, or ticks go missing.
+TIMER_BLOCKS = (0x40000400, 0x40000800)  # TIM3, TIM4
 TIMER_STATUS = (
     0x40000410,
     0x40000810,
@@ -76,7 +87,8 @@ class StockFirmware:
             sys.exit(
                 f"{path}: not a V1.8 image (the function addresses here are V1.8's)"
             )
-        self.adc_count = 0
+        self.image = image
+        self.adc = {TIP_CHANNEL: 0, VIN_CHANNEL: 2256}  # count per channel; 2256 = 20 V
         self.writes = []  # (pc, address) of writes inside watch() ranges
         self._polls = collections.Counter()
 
@@ -118,7 +130,7 @@ class StockFirmware:
         # A status register read again and again from one place is a wait loop. Flip what
         # it reads every 64 polls, so "wait until set" and "wait until clear" both pass.
         address &= ~3
-        if address in FIXED_INPUTS:
+        if address in FIXED_INPUTS or address & ~0x3FF in TIMER_BLOCKS:
             return
         key = (uc.reg_read(UC_ARM_REG_PC), address)
         self._polls[key] += 1
@@ -127,8 +139,16 @@ class StockFirmware:
             uc.mem_write(address, struct.pack("<I", 0 if current else 0xFFFFFFFF))
 
     def _adc_read(self, uc, address, size, _):
-        uc.reg_write(UC_ARM_REG_R0, self.adc_count)
+        uc.reg_write(UC_ARM_REG_R0, self.adc.get(uc.reg_read(UC_ARM_REG_R0), 0))
         uc.reg_write(UC_ARM_REG_PC, uc.reg_read(UC_ARM_REG_LR))
+
+    @property
+    def adc_count(self):
+        return self.adc[TIP_CHANNEL]
+
+    @adc_count.setter
+    def adc_count(self, count):
+        self.adc[TIP_CHANNEL] = count
 
     # -- running ----------------------------------------------------------------------
     def run(self, instructions):
@@ -151,6 +171,11 @@ class StockFirmware:
         for status in TIMER_STATUS:
             self.uc.mem_write(status, struct.pack("<I", 0xFFFF))
         self.call(self.tick_handler & ~1)
+
+    def irq(self, vector, status_register):
+        """Run one interrupt handler with its timer's update flag set."""
+        self.uc.mem_write(status_register, struct.pack("<I", 0xFFFF))
+        self.call(struct.unpack_from("<I", self.image, 4 * vector)[0] & ~1)
 
     def watch(self, start, length):
         def on_write(uc, access, address, size, value, _):
