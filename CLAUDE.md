@@ -145,7 +145,9 @@ prints the stock temperature per ADC count; `compare.py FIRMWARE_DIR` builds the
 `ThermoModel.cpp` for the host and checks it against both stock images for every count
 (B within 0.74 °C, A within 0.31 °C; for the uncalibrated B it expects the 25 °C gap
 above). Run `compare.py` after touching the stock-curve
-path. Prefer asking the emulator over reading disassembly: it found the 25 °C constant,
+path. `control_sim.py IMAGE` closes the temperature loop around the stock firmware with
+a guessed two-mass tip (the controller is exact, the tip is not). Prefer asking the
+emulator over reading disassembly: it found the 25 °C constant,
 confirmed nothing rewrites it, and caught a stock A glitch (a count exactly equal to the
 240 °C point reads ~10 °C high) that hand-reading had missed. It answers "what does stock
 compute", never "is stock right for a real tip".
@@ -180,10 +182,24 @@ TS80), so it is upstream-worthy, not Fnirsi-specific.
   decoded cal counts + "In Use" / "Custom Curve". NOTE: raw ASCII literals render garbled —
   the small font only carries glyphs used by translations; UI text must go through
   `make_translation.py` (`get_constants()` SmallSymbol* entries or `get_debug_menu()`).
-- Stock PID for reference (from RE): incremental/velocity form. **HS-02A and HS-02B use
-  DIFFERENT gain sets** (verified by decoding both firmwares' double constant pools — so
-  the "02A/02B differ only in the soft-start ramp" claim in
-  `firmwares/HS-02_PID_FUN_08009f00_还原.md` is wrong):
+- Stock control for reference. **HS-02A and HS-02B use DIFFERENT control laws, not just
+  different gains** (read from both V1.8 functions and confirmed by running them in
+  `tools/hs02-stock-emu/control_sim.py`; its README has the full description — so the
+  "02A/02B differ only in the soft-start ramp" claim in
+  `firmwares/HS-02_PID_FUN_08009f00_还原.md` is wrong). Both run every 10 ms, force full
+  output above +100 °C of error and zero below −20 °C, and cap the duty at
+  "power setting as watts into an assumed heater resistance" (B 2.0 Ω, A 2.75–3.4 Ω),
+  which is the only hint we have of the F210's resistance:
+  - **HS-02A is proportional only**: `duty % = 0.81·e + 2.38·Δe + 0.28·Δ²e` is WRITTEN to
+    the output each period, not added, so the tip sits `duty / 0.81` °C below the
+    setpoint (roughly 10 °C idle, 20 °C on a joint). The stock display hides that: it
+    shows the setpoint for any reading within ±10 °C and holds it while the tip falls up
+    to ~30 °C. This is the "stock can't hold temperature on big joints, power bar only
+    reaches 30 %" complaint in #1935, and it means a "stock shows X at a real Y"
+    comparison includes that droop and display bias, not only curve error.
+  - **HS-02B is a slow integrator**: `output += 0.04·Δe + 0.01·e + 0.02·Δ²e`, clamped to
+    0..cap. No droop, but 1 % duty per second per °C, and every heat-up overshoots by
+    about 20 °C until the −20 °C cut-off stops it.
   - **HS-02A** (V1.8 & V2.1): Kp=2.38 Ki=0.81 Kd=0.28 (doubles at `0x080170d0`, in the
     .data tail), gain-scheduled ×4.5/×3.0/×2.0 at 9/12/15 V PD tiers (`0x0800a24c`).
   - **HS-02B** (V1.8, and V2.0.1 per the dump's app region, see caveat under Full-flash dumps): Kp=0.04 Ki=0.01 Kd=0.02 (doubles at `0x0800a1b0` in
