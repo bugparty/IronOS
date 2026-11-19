@@ -29,7 +29,11 @@ volatile uint8_t  pendingPWM     = 0;
 // Our main PWM timer runs at 20Hz, 400 ticks per cycle (8kHz tick)
 // ADC runs at 8MHz and needs less than one timer tick to perform all conversions
 const uint16_t        powerPWM         = 395;                                        // pulse when TIM1 output power is enabled
+#if defined(MODEL_HS02B)
+static const uint16_t holdoffTicks     = 16;                                          // holdoff after TIM1 power pulse
+#else
 static const uint16_t holdoffTicks     = 4;                                          // holdoff after TIM1 power pulse
+#endif
 static const uint16_t tempMeasureTicks = 1;                                          // measurement period
 uint16_t              totalPWM         = powerPWM + tempMeasureTicks + holdoffTicks; // TIM4 init period, the full PWM cycle
 

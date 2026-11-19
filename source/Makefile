@@ -7,7 +7,7 @@ ALL_PINECIL_MODELS=Pinecil
 ALL_PINECIL_V2_MODELS=Pinecilv2
 ALL_MHP30_MODELS=MHP30
 ALL_SEQURE_MODELS=S60 S60P T55
-ALL_FNIRSI_MODELS=HS02
+ALL_FNIRSI_MODELS=HS02A HS02B
 ALL_MODELS=$(ALL_MINIWARE_MODELS) $(ALL_PINECIL_MODELS) $(ALL_MHP30_MODELS) $(ALL_PINECIL_V2_MODELS) $(ALL_SEQURE_MODELS) $(ALL_FNIRSI_MODELS)
 
 ifneq ($(model),$(filter $(model),$(ALL_MODELS)))
@@ -300,7 +300,7 @@ bootldr_size=0x0
 endif # ALL_PINECIL_V2_MODELS
 
 ifeq ($(model),$(filter $(model),$(ALL_FNIRSI_MODELS)))
-$(info Building for Fnirsi )
+$(info Building for Fnirsi $(model))
 DEVICE_BSP_DIR=./Core/BSP/Fnirsi
 LDSCRIPT=${DEVICE_BSP_DIR}/Scripts/n32l403_flash_user.ld
 
@@ -308,6 +308,7 @@ flash_size=104k
 bootldr_size=0x5800
 
 DEV_GLOBAL_DEFS=-D N32L40X              \
+                -D MODEL_HS02           \
                 -D USE_STDPERIPH_DRIVER \
                 -D SYSCLK_SRC=SYSCLK_USE_HSI_PLL   \
                 -D SYSCLK_FREQ=64000000 \
@@ -327,7 +328,7 @@ CPUFLAGS=-mcpu=cortex-m4  \
 				 -mfpu=fpv4-sp-d16 \
          -mfloat-abi=hard
 
-CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py bin
+CUSTOM_FORMAT_CMD=$(HOST_PYTHON) ${DEVICE_BSP_DIR}/Scripts/add_header.py BIN
 
 SMALL_FONT=default_12x16
 LARGE_FONT=default_24x32

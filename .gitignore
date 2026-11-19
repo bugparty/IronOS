@@ -1,4 +1,5 @@
 #### Generic ####
+*.png
 
 # Object files
 *.o
