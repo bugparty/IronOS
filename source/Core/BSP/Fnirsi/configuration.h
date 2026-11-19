@@ -76,6 +76,7 @@
  * Buzzer (annoying)
  *
  */
+#define HAS_BUZZER
 #define BUZZER_VOLUME 0 // Range: 0 - 20
 
 /**

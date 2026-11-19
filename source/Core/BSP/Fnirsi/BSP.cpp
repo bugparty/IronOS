@@ -190,10 +190,11 @@ void setStatusLED(const enum StatusLED state) {
 }
 
 void setBuzzer(bool on) {
-  // 63 = 50% duty cycle -> too lound and too much current
-  // 20 = 16% duty cycle -> max reasonable
-  static_assert(BUZZER_VOLUME < 20);
-  TIM_SetCmp1(TIM2, on ? BUZZER_VOLUME : 0);
+  uint16_t volume = getSettingValue(SettingsOptions::BuzzerVolume);
+  if (volume > 19) {
+    volume = 19;
+  }
+  TIM_SetCmp1(TIM2, on ? volume : 0);
 }
 
 #ifdef TIP_RESISTANCE_SENSE_Pin

@@ -77,8 +77,9 @@ enum SettingsOptions {
   HallEffectSleepTime            = 53, // Seconds (/5) timeout to sleep when hall effect over threshold
   SolderingTipType               = 54, // Selecting the type of soldering tip fitted
   ReverseButtonSettings          = 55, // Change the A and B button assigment in Settings menu
-  //
-  SettingsOptionsLength = 56, // End marker
+    BuzzerVolume                   = 56, // Buzzer volume (0 = Off)
+
+  SettingsOptionsLength = 57, // End marker
 };
 
 typedef enum {

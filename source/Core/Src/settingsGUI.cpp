@@ -369,6 +369,10 @@ const menuitem PowerSavingMenu[] = {
   /* ^^^^ end of menu marker. DO NOT REMOVE ^^^^ */
 };
 
+#ifdef HAS_BUZZER
+static void displayBuzzerVolume(void);
+#endif
+
 const menuitem UIMenu[] = {
   /*
    *  Temperature Unit
@@ -412,6 +416,10 @@ const menuitem UIMenu[] = {
   {SETTINGS_DESC(SettingsItemIndex::AdvancedIdle), nullptr, displayAdvancedIDLEScreens, nullptr, SettingsOptions::DetailedIDLE, SettingsItemIndex::AdvancedIdle, 7},
   /* Advanced soldering screen */
   {SETTINGS_DESC(SettingsItemIndex::AdvancedSoldering), nullptr, displayAdvancedSolderingScreens, nullptr, SettingsOptions::DetailedSoldering, SettingsItemIndex::AdvancedSoldering, 7},
+#ifdef HAS_BUZZER
+  /* Buzzer volume */
+  {SETTINGS_DESC(SettingsItemIndex::BuzzerVolume), nullptr, displayBuzzerVolume, nullptr, SettingsOptions::BuzzerVolume, SettingsItemIndex::BuzzerVolume, 7},
+#endif /* HAS_BUZZER */
   /* vvvv end of menu marker. DO NOT REMOVE vvvv */
   {0, nullptr, nullptr, nullptr, SettingsOptions::SettingsOptionsLength, SettingsItemIndex::NUM_ITEMS, 0}
   /* ^^^^ end of menu marker. DO NOT REMOVE ^^^^ */
@@ -890,6 +898,10 @@ static void displayInvertColor(void) {
   // While not optimal to apply this here, it is _very_ convenient
   Display::setInverseDisplay(getSettingValue(SettingsOptions::DisplayInversion));
 }
+
+#ifdef HAS_BUZZER
+static void displayBuzzerVolume(void) { Display::printNumber(getSettingValue(SettingsOptions::BuzzerVolume), 2, FontStyle::LARGE); }
+#endif
 
 static void displayLogoTime(void) {
   switch (getSettingValue(SettingsOptions::LOGOTime)) {
