@@ -111,6 +111,60 @@ void LCD::drawNativeImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint
   SPI_CLASS::fastSend(rgb565, (size_t)w * h * 2);
 }
 
+void LCD::drawRLEImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *rleData, size_t rleLen, const uint16_t *palette, uint8_t scale) {
+  // Palette-indexed RLE, column-major. Byte = (idx<<4)|run; run==0 -> next byte is the run (16..255).
+  // `palette` holds wire-ready (already inverted) RGB565. scale is 1 or 2 (pixel doubling).
+  if (scale < 1 || scale > 2) {
+    scale = 1;
+  }
+  setDrawingWindow(x, y, w, h);
+  const uint8_t srcW     = w / scale;
+  const uint8_t srcH     = h / scale;
+  const size_t  colBytes = (size_t)h * 2;
+
+  uint8_t        out[2][LCD_HEIGHT * 2 * 2]; // one output "super column" (scale columns), double buffered
+  uint8_t        idxCol[LCD_HEIGHT];
+  uint8_t        bufIdx = 0, pos = 0, cols = 0;
+
+  auto flushColumn = [&]() {
+    uint8_t *o = out[bufIdx];
+    for (uint8_t py = 0; py < srcH; py++) {
+      const uint16_t c = palette[idxCol[py] & 0x0F];
+      for (uint8_t s = 0; s < scale; s++) {
+        *o++ = (uint8_t)(c >> 8);
+        *o++ = (uint8_t)(c & 0xFF);
+      }
+    }
+    if (scale == 2) {
+      memcpy(out[bufIdx] + colBytes, out[bufIdx], colBytes);
+    }
+    SPI_CLASS::fastSend(out[bufIdx], colBytes * scale);
+    bufIdx ^= 1;
+    pos = 0;
+    cols++;
+  };
+
+  size_t i = 0;
+  while (i < rleLen && cols < srcW) {
+    const uint8_t  b   = rleData[i++];
+    const uint8_t  idx = b >> 4;
+    uint16_t       run = b & 0x0F;
+    if (run == 0) {
+      if (i >= rleLen) {
+        break;
+      }
+      run = rleData[i++];
+    }
+    while (run > 0 && cols < srcW) {
+      idxCol[pos++] = idx;
+      if (pos >= srcH) {
+        flushColumn();
+      }
+      run--;
+    }
+  }
+}
+
 void LCD::setDrawingWindow(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
   lcdSetAreaCmds[0].data[1] = x + ST7735_XOFFSET;
   lcdSetAreaCmds[0].data[3] = x + w + ST7735_XOFFSET - 1;

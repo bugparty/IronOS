@@ -95,6 +95,7 @@ public:
   // Blit a raw big-endian RGB565 image straight to the panel, bypassing the framebuffer.
   // Used for the colour boot logo; the next refresh() overwrites it.
   static void drawNativeImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *rgb565);
+  static void drawRLEImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *rleData, size_t rleLen, const uint16_t *palette, uint8_t scale);
   static void drawArea(int16_t x, int8_t y, uint8_t wide, uint8_t height, const uint8_t *ptr);        // Draw an area, but y must be aligned on 0/8 offset
   static void drawAreaSwapped(int16_t x, int8_t y, uint8_t wide, uint8_t height, const uint8_t *ptr); // Draw an area, but y must be aligned on 0/8 offset
   static void fillArea(int16_t x, int8_t y, uint8_t wide, uint8_t height, const uint8_t value);       // Fill an area, but y must be aligned on 0/8 offset

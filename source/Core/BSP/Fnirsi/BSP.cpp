@@ -317,14 +317,32 @@ uint16_t getTipInertia() {
 }
 
 void showBootLogo(void) {
-  // Blit the colour FNIRSI logo (extracted from stock firmware) straight to the panel,
-  // then reveal it and hold until a button is pressed or the timeout elapses.
+#ifdef FNIRSI_LOGO_ANIMATION
+  LCD::drawRLEImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H,
+                    fnirsiBootLogoData + fnirsiBootLogoOffsets[0], fnirsiBootLogoLengths[0], fnirsiBootLogoPalette, FNIRSI_LOGO_SCALE);
+  vTaskDelay(TICKS_SECOND / 60);
+  LCD::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
+
+  const TickType_t frameTicks = (FNIRSI_LOGO_FRAME_DELAY_MS * TICKS_SECOND) / 1000;
+  for (uint16_t f = 1; f < FNIRSI_LOGO_FRAME_COUNT; f++) {
+    if (getButtonState() != BUTTON_NONE) {
+      return;
+    }
+    TickType_t start = xTaskGetTickCount();
+    LCD::drawRLEImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H,
+                      fnirsiBootLogoData + fnirsiBootLogoOffsets[f], fnirsiBootLogoLengths[f], fnirsiBootLogoPalette, FNIRSI_LOGO_SCALE);
+    TickType_t elapsed = xTaskGetTickCount() - start;
+    if (elapsed < frameTicks) {
+      vTaskDelay(frameTicks - elapsed);
+    }
+  }
+  waitForButtonPressOrTimeout(TICKS_SECOND / 2);
+#else
   LCD::drawNativeImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H, fnirsiBootLogo);
-  // SPI has drained here, but wait for the panel to scan the new GRAM once before
-  // enabling its backlight; this avoids exposing the previous white scanline.
   vTaskDelay(TICKS_SECOND / 60);
   LCD::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
   waitForButtonPressOrTimeout(TICKS_SECOND * 2);
+#endif
 }
 
 bool getFUS302IRQLow() { return false; }
