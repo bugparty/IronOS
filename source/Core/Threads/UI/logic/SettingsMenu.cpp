@@ -244,138 +244,6 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     return false;
   };
 
-#ifdef HAS_OK_BUTTON
-  // Modify a button value before processing a key press if setting to swap buttons is enabled
-  bool    swapButtonSettings = getSettingValue(SettingsOptions::ReverseButtonSettings);
-  uint8_t buttonPress;
-  switch (buttons) {
-  case BUTTON_F_LONG:
-    buttonPress = swapButtonSettings ? BUTTON_B_LONG : BUTTON_F_LONG;
-    break;
-  case BUTTON_F_SHORT:
-    buttonPress = swapButtonSettings ? BUTTON_B_SHORT : BUTTON_F_SHORT;
-    break;
-  case BUTTON_B_LONG:
-    buttonPress = swapButtonSettings ? BUTTON_F_LONG : BUTTON_B_LONG;
-    break;
-  case BUTTON_B_SHORT:
-    buttonPress = swapButtonSettings ? BUTTON_F_SHORT : BUTTON_B_SHORT;
-    break;
-  default:
-    buttonPress = buttons;
-    break;
-  }
-
-  OperatingMode newMode       = OperatingMode::SettingsMenu;
-  const bool    editing       = (*isEditing != 0);
-  const bool    hasAutoOption = (int)currentMenu[currentScreen].autoSettingOption < (int)SettingsOptions::SettingsOptionsLength;
-
-  // up=true: increase value, up=false: decrease (handlers without a decrement just act like increase)
-  auto stepValue = [&](bool up) {
-    if (!up && currentMenu[currentScreen].incrementHandler == nullptr && hasAutoOption) {
-      prevSettingValue(currentMenu[currentScreen].autoSettingOption);
-    } else {
-      callIncrementHandler();
-    }
-    *currentMenuLength = 0; // Reset incase menu visible changes
-  };
-  // Auto-repeat gate for held buttons (same timing/acceleration as before)
-  auto repeatReady = [&]() {
-    if (xTaskGetTickCount() + (*autoRepeatAcceleration) > (*autoRepeatTimer) + PRESS_ACCEL_INTERVAL_MAX) {
-      (*autoRepeatTimer) = xTaskGetTickCount();
-      (*autoRepeatAcceleration) += PRESS_ACCEL_STEP;
-      return true;
-    }
-    return false;
-  };
-
-  switch (buttonPress) {
-  case BUTTON_NONE:
-    (*autoRepeatAcceleration) = 0; // reset acceleration
-    (*autoRepeatTimer)        = 0; // reset acceleration
-    break;
-  case BUTTON_OK_LONG:
-    if (editing) {
-      *isEditing = 0; // leave edit mode, value is kept
-    } else if (*subEntry == 0) {
-      saveSettings();
-      cxt->transitionMode = TransitionAnimation::Left;
-      return OperatingMode::HomeScreen;
-    } else {
-      cxt->transitionMode = TransitionAnimation::Left;
-      *subEntry           = 0;
-      return OperatingMode::SettingsMenu;
-    }
-    break;
-  case BUTTON_BOTH: // legacy two-button back gesture
-    if (*subEntry == 0) {
-      saveSettings();
-      cxt->transitionMode = TransitionAnimation::Left;
-      return OperatingMode::HomeScreen;
-    } else {
-      *isEditing          = 0;
-      cxt->transitionMode = TransitionAnimation::Left;
-      *subEntry           = 0;
-      return OperatingMode::SettingsMenu;
-    }
-    break;
-  case BUTTON_OK_SHORT:
-    if (*isRenderingHelp) {
-      *isRenderingHelp = 0;
-    } else if (editing) {
-      *isEditing = 0; // confirm
-    } else if (*subEntry == 0) {
-      *currentMenuLength = 0;
-      if (currentMenu[currentScreen].incrementHandler != nullptr) {
-        currentMenu[currentScreen].incrementHandler(); // root entry that is an action
-      } else {
-        (*subEntry) += 1; // enter submenu
-        cxt->transitionMode = TransitionAnimation::Right;
-      }
-    } else {
-      *isEditing = 1; // start editing this value
-    }
-    break;
-  case BUTTON_F_SHORT: // '<'
-    if (editing) {
-      stepValue(false);
-    } else {
-      newMode = moveToPreviousEntry(cxt);
-    }
-    break;
-  case BUTTON_F_LONG:
-    if (repeatReady()) {
-      if (editing) {
-        stepValue(false);
-      } else {
-        newMode = moveToPreviousEntry(cxt);
-      }
-    }
-    break;
-  case BUTTON_B_SHORT: // '>'
-    if (editing) {
-      stepValue(true);
-    } else {
-      newMode = moveToNextEntry(cxt);
-    }
-    break;
-  case BUTTON_B_LONG:
-    if (repeatReady()) {
-      if (editing) {
-        stepValue(true);
-        if (hasAutoOption && isLastSettingValue(currentMenu[currentScreen].autoSettingOption)) {
-          (*autoRepeatTimer) = xTaskGetTickCount() + TICKS_SECOND * 2; // pause at the last value
-        }
-      } else {
-        newMode = moveToNextEntry(cxt);
-      }
-    }
-    break;
-  default:
-    break;
-  }
-
-#else // Two-button devices (no OK button)
   // Modify a button value before processing a key press if setting to swap buttons is enabled
   bool    swapButtonSettings = getSettingValue(SettingsOptions::ReverseButtonSettings);
   uint8_t buttonPress;
@@ -419,12 +287,27 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     return false;
   };
 
+#ifdef HAS_OK_BUTTON
+  // Three-button devices: OK for actions, F/B for navigation
   switch (buttonPress) {
   case BUTTON_NONE:
     (*autoRepeatAcceleration) = 0;
     (*autoRepeatTimer)        = 0;
     break;
-  case BUTTON_BOTH: // Back/exit
+  case BUTTON_OK_LONG:
+    if (editing) {
+      *isEditing = 0;
+    } else if (*subEntry == 0) {
+      saveSettings();
+      cxt->transitionMode = TransitionAnimation::Left;
+      return OperatingMode::HomeScreen;
+    } else {
+      cxt->transitionMode = TransitionAnimation::Left;
+      *subEntry           = 0;
+      return OperatingMode::SettingsMenu;
+    }
+    break;
+  case BUTTON_BOTH:
     if (*subEntry == 0) {
       saveSettings();
       cxt->transitionMode = TransitionAnimation::Left;
@@ -436,24 +319,97 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
       return OperatingMode::SettingsMenu;
     }
     break;
-  case BUTTON_F_SHORT: // Enter submenu / start editing / decrement
+  case BUTTON_OK_SHORT:
     if (*isRenderingHelp) {
       *isRenderingHelp = 0;
     } else if (editing) {
-      stepValue(false); // decrement
+      *isEditing = 0;
     } else if (*subEntry == 0) {
       *currentMenuLength = 0;
       if (currentMenu[currentScreen].incrementHandler != nullptr) {
         currentMenu[currentScreen].incrementHandler();
       } else {
-        (*subEntry) += 1; // enter submenu
+        (*subEntry) += 1;
         cxt->transitionMode = TransitionAnimation::Right;
       }
     } else {
-      *isEditing = 1; // start editing
+      *isEditing = 1;
     }
     break;
-  case BUTTON_F_LONG: // Auto-repeat enter/edit/decrement
+  case BUTTON_F_SHORT:
+    if (editing) {
+      stepValue(false);
+    } else {
+      newMode = moveToPreviousEntry(cxt);
+    }
+    break;
+  case BUTTON_F_LONG:
+    if (repeatReady()) {
+      if (editing) {
+        stepValue(false);
+      } else {
+        newMode = moveToPreviousEntry(cxt);
+      }
+    }
+    break;
+  case BUTTON_B_SHORT:
+    if (editing) {
+      stepValue(true);
+    } else {
+      newMode = moveToNextEntry(cxt);
+    }
+    break;
+  case BUTTON_B_LONG:
+    if (repeatReady()) {
+      if (editing) {
+        stepValue(true);
+        if (hasAutoOption && isLastSettingValue(currentMenu[currentScreen].autoSettingOption)) {
+          (*autoRepeatTimer) = xTaskGetTickCount() + TICKS_SECOND * 2;
+        }
+      } else {
+        newMode = moveToNextEntry(cxt);
+      }
+    }
+    break;
+  default:
+    break;
+  }
+#else // Two-button devices: F for enter/edit, B for next
+  switch (buttonPress) {
+  case BUTTON_NONE:
+    (*autoRepeatAcceleration) = 0;
+    (*autoRepeatTimer)        = 0;
+    break;
+  case BUTTON_BOTH:
+    if (*subEntry == 0) {
+      saveSettings();
+      cxt->transitionMode = TransitionAnimation::Left;
+      return OperatingMode::HomeScreen;
+    } else {
+      *isEditing          = 0;
+      cxt->transitionMode = TransitionAnimation::Left;
+      *subEntry           = 0;
+      return OperatingMode::SettingsMenu;
+    }
+    break;
+  case BUTTON_F_SHORT:
+    if (*isRenderingHelp) {
+      *isRenderingHelp = 0;
+    } else if (editing) {
+      stepValue(false);
+    } else if (*subEntry == 0) {
+      *currentMenuLength = 0;
+      if (currentMenu[currentScreen].incrementHandler != nullptr) {
+        currentMenu[currentScreen].incrementHandler();
+      } else {
+        (*subEntry) += 1;
+        cxt->transitionMode = TransitionAnimation::Right;
+      }
+    } else {
+      *isEditing = 1;
+    }
+    break;
+  case BUTTON_F_LONG:
     if (repeatReady()) {
       if (editing) {
         stepValue(false);
@@ -470,14 +426,14 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
       }
     }
     break;
-  case BUTTON_B_SHORT: // Next item / increment
+  case BUTTON_B_SHORT:
     if (editing) {
-      stepValue(true); // increment
+      stepValue(true);
     } else {
       newMode = moveToNextEntry(cxt);
     }
     break;
-  case BUTTON_B_LONG: // Auto-repeat next / increment
+  case BUTTON_B_LONG:
     if (repeatReady()) {
       if (editing) {
         stepValue(true);
