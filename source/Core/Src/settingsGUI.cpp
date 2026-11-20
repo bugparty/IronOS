@@ -593,8 +593,8 @@ static void setBoostTemp(bool up) {
       } else {
         value += 20; // Go up 20F at a time
       }
-      if (value >= MAX_TEMP_F) {
-        value = 0; // jump to off
+      if (value == 0) {
+        value = MAX_TEMP_F - 20; // wrap to max
       }
     } else {
       if (value == 0) {
