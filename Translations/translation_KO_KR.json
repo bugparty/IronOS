@@ -4,19 +4,19 @@
   "tempUnitFahrenheit": false,
   "messagesWarn": {
     "CalibrationDone": {
-      "message": "보정\n완료!"
+      "message": "\n보정\n완료!"
     },
     "ResetOKMessage": {
       "message": "초기화 완료"
     },
     "SettingsResetMessage": {
-      "message": "일부 설정이\n변경됨!"
+      "message": "\n일부 설정이\n변경됨!"
     },
     "NoAccelerometerMessage": {
-      "message": "가속도 센서가\n감지되지 않음!"
+      "message": "\n가속도 센서가\n감지되지 않음!"
     },
     "NoPowerDeliveryMessage": {
-      "message": "USB-PD IC가\n감지되지 않음!"
+      "message": "\nUSB-PD IC가\n감지되지 않음!"
     },
     "LockingKeysString": {
       "message": "잠금됨"
@@ -28,7 +28,7 @@
       "message": "!잠금됨!"
     },
     "WarningThermalRunaway": {
-      "message": "열 폭주\n발생"
+      "message": "\n열 폭주\n발생"
     },
     "WarningTipShorted": {
       "message": "!팁 단락됨!"
@@ -64,10 +64,10 @@
       "message": "냉각\n"
     },
     "DeviceFailedValidationWarning": {
-      "message": "기기가 가품일 가능성이 높습니다!"
+      "message": "\n기기가 가품일\n가능성이 높습니다!"
     },
     "TooHotToStartProfileWarning": {
-      "message": "온도가 너무 높아\n프로파일 시작 불가"
+      "message": "\n온도가 너무 높아\n프로파일 시작 불가"
     }
   },
   "characters": {
