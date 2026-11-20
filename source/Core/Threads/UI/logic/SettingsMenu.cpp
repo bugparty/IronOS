@@ -267,6 +267,10 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
 
   OperatingMode newMode       = OperatingMode::SettingsMenu;
   const bool    editing       = (*isEditing != 0);
+#ifdef HAS_OK_BUTTON
+  LCD::setMonoColors(editing ? THEME_MONO_BG_EDIT : THEME_MONO_BG,
+                     editing ? THEME_MONO_INK_EDIT : THEME_MONO_INK);
+#endif
   const bool    hasAutoOption = (int)currentMenu[currentScreen].autoSettingOption < (int)SettingsOptions::SettingsOptionsLength;
 
   // up=true: increase value, up=false: decrease
