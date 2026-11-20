@@ -494,6 +494,7 @@ static int userConfirmation(const char *message) {
     ButtonState buttons = getButtonState();
     switch (buttons) {
     case BUTTON_F_SHORT:
+    case BUTTON_OK_SHORT:
       // User confirmed
       return 1;
 
@@ -973,6 +974,8 @@ static void setCalibrateVIN(void) {
     case BUTTON_B_SHORT:
       nextSettingValue(SettingsOptions::VoltageDiv);
       break;
+    case BUTTON_OK_SHORT:
+    case BUTTON_OK_LONG:
     case BUTTON_BOTH:
     case BUTTON_F_LONG:
     case BUTTON_B_LONG:

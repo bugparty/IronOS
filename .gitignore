@@ -1,5 +1,7 @@
 #### Generic ####
 *.png
+*.gif
+*.bak*
 
 # Object files
 *.o

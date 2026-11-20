@@ -9,6 +9,7 @@
 #include "LCD.hpp"
 #ifdef LCD_160x80
 
+#include "ColorTheme.h"
 #include "LCD_Port.hpp"
 #include "Settings.h"
 #include "Translation.h"
@@ -30,14 +31,16 @@ uint8_t *LCD::activeColorBuffer    = LCD::screenBuffer;
 uint32_t LCD::displayChecksum;
 bool     LCD::colorModeActive = false;
 uint8_t  LCD::loopCounter;
+uint16_t LCD::monoBg  = THEME_MONO_BG;
+uint16_t LCD::monoInk = THEME_MONO_INK;
 
 // True (non-inverted) RGB565 colours; refreshColor() inverts each one on the way out because the
 // panel runs with INVON. Index 0 stays background so clearScreenColor()'s memset(0) blanks to it.
 const uint16_t LCD::palette2bpp[4] = {
-    0x0862, // background (navy)
-    0xF77C, // ink (off-white)
-    0xFBC5, // ember (heating)
-    0x45B8, // cool (idle/sleep)
+    THEME_BACKGROUND,
+    THEME_INK,
+    THEME_HEATING,
+    THEME_COOL,
 };
 const uint16_t *LCD::activePalette2bpp = LCD::palette2bpp;
 
@@ -105,6 +108,24 @@ FRToSSPI::SPI_CMD lcdSetAreaCmds[] = {
     {ST7735_CASET, FRToSSPI::SPI_CMD_PAYLOAD, 4, (uint8_t[]){0, ST7735_YOFFSET, 0, LCD_HEIGHT + ST7735_YOFFSET - 1}},
     {ST7735_RAMWR, FRToSSPI::SPI_CMD_PAYLOAD, 0,                                                               NULL},
 };
+
+void LCD::refreshMono() {
+  // Same column-major scan as refreshColor(). The panel runs INVON, so send the inverse colour.
+  // A SET bit in the 1bpp buffer is the "ink" (text) pixel.
+  const uint16_t bgWire  = (uint16_t)~monoBg;
+  const uint16_t inkWire = (uint16_t)~monoInk;
+  uint8_t        col[LCD_HEIGHT * 2];
+  setDrawingWindow(0, 0, LCD_WIDTH, LCD_HEIGHT);
+  for (uint16_t x = 0; x < LCD_WIDTH; x++) {
+    for (uint16_t y = 0; y < LCD_HEIGHT; y++) {
+      const bool     on = (stripPointers[y >> 3][x] >> (y & 7)) & 1;
+      const uint16_t c  = on ? inkWire : bgWire;
+      col[y * 2]        = (uint8_t)(c >> 8);
+      col[y * 2 + 1]    = (uint8_t)(c & 0xFF);
+    }
+    SPI_CLASS::fastSend(col, sizeof(col));
+  }
+}
 
 void LCD::drawNativeImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *rgb565) {
   setDrawingWindow(x, y, w, h);

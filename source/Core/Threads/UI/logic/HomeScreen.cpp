@@ -62,6 +62,7 @@ OperatingMode handleHomeButtons(const ButtonState buttons, guiContext *cxt) {
       return OperatingMode::Soldering;
     }
     break;
+  case BUTTON_OK_LONG: // Dedicated OK long-press opens the settings menu
   case BUTTON_B_SHORT:
 #if defined(LCD_160x80)
     cxt->transitionMode = TransitionAnimation::None;

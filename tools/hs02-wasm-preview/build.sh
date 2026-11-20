@@ -3,7 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 command -v em++ >/dev/null || { echo "em++ not found. Activate emsdk first (source <emsdk>/emsdk_env.sh)." >&2; exit 1; }
 mkdir -p "$root/tools/hs02-wasm-preview/web/generated"
-em++ -std=c++17 -O2 -DMODEL_HS02 -DHARDWARE_MAX_WATTAGE_X10=1000 \
+em++ -std=c++17 -O2 -DMODEL_HS02B -DHARDWARE_MAX_WATTAGE_X10=1000 \
   -I"$root/tools/hs02-wasm-preview/host_include" -I"$root/source/Core/BSP/Fnirsi" -I"$root/source/Core/Inc" -I"$root/source/Core/Drivers" -I"$root/source/Core/Threads/UI/drawing/color_160x80" \
   "$root/tools/hs02-wasm-preview/src/firmware_ui_host.cpp" \
   -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORTED_RUNTIME_METHODS='["HEAPU8"]' \

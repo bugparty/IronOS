@@ -41,13 +41,7 @@ public:
     }
 
     if (force || checkDisplayBufferChecksum()) {
-      const int len = (LCD_WIDTH * (LCD_HEIGHT / 8));
-
-      // TODO: don't use strip buffers
-      for (uint8_t i = 0; i < LCD_HEIGHT / 8; i++) {
-        setDrawingWindow(0, 8 * i, LCD_WIDTH, 8);
-        SPI_CLASS::sendPixels(stripPointers[i], len / (LCD_HEIGHT / 8));
-      }
+      refreshMono();
     }
   }
 
@@ -78,6 +72,15 @@ public:
   // Blits a transparent 1bpp bitmap encoded as column-major vertical strips.
   // Page-specific colour UIs own their glyph data; this is only the generic blitter.
   static void drawBitmap2bpp(const uint8_t *bitmap, uint8_t width, uint8_t height, uint8_t x, uint8_t y, uint8_t colorIndex);
+
+  // Colours (true RGB565) for 1bpp frames: bg for clear bits, ink for set bits.
+  static void setMonoColors(uint16_t bg, uint16_t ink) {
+    if (bg != monoBg || ink != monoInk) {
+      monoBg          = bg;
+      monoInk         = ink;
+      displayChecksum = ~0U; // force a redraw with the new colours
+    }
+  }
 
   static void setDisplayState(bool state) {
     // TODO: implement
@@ -139,6 +142,7 @@ private:
   }
   static uint8_t *monoSecondFrameBuffer() { return &screenBuffer[LCD_SCREEN_BUF_SIZE]; }
   static void     refreshColor();
+  static void     refreshMono();
   // Plots one radial segment at `angle`, covering radii [rInner, rOuter]. Shared by drawRing2bpp
   // and drawTick2bpp.
   static void plotRadialSegment(uint8_t cx, uint8_t cy, float angle, uint8_t rInner, uint8_t rOuter, uint8_t colorIndex);
@@ -152,6 +156,8 @@ private:
   static uint8_t *colorSecondaryBuffer;
   static uint8_t *activeColorBuffer;
   static uint8_t  loopCounter;
+  static uint16_t monoBg;
+  static uint16_t monoInk;
 
   // 4-colour palette for the 2bpp colour screens, in device RGB565 (big-endian on the wire).
   // Index 0 must be the background colour (clearScreenColor() relies on an all-zero buffer).
