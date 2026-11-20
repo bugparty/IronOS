@@ -126,8 +126,14 @@ OperatingMode moveToNextEntry(guiContext *cxt) {
 #ifdef HAS_OK_BUTTON
 // Move to the previous visible entry of the current menu (wraps around to the last entry).
 static OperatingMode moveToPreviousEntry(guiContext *cxt) {
-  uint16_t *mainEntry = &(cxt->scratch_state.state1);
-  uint16_t *subEntry  = &(cxt->scratch_state.state2);
+  uint16_t *mainEntry       = &(cxt->scratch_state.state1);
+  uint16_t *subEntry        = &(cxt->scratch_state.state2);
+  uint16_t *isRenderingHelp = &(cxt->scratch_state.state6);
+
+  if (*isRenderingHelp) {
+    *isRenderingHelp = 0;
+    return OperatingMode::SettingsMenu;
+  }
 
   const menuitem *menu = (*subEntry == 0) ? rootSettingsMenu : subSettingsMenus[*mainEntry];
   uint16_t        last = 0;
