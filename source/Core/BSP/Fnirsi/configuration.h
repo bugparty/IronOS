@@ -120,7 +120,7 @@
 #define THERMAL_RUNAWAY_TEMP_C   3
 
 #define CUT_OUT_SETTING          0  // default to no cut-off voltage
-#define RECOM_VOL_CELL           25 // Minimum voltage per cell (Recommended 3.3V (33))
+#define RECOM_VOL_CELL           33 // Minimum voltage per cell (Recommended 3.3V (33))
 #define TEMPERATURE_INF          0  // default to 0
 #define DESCRIPTION_SCROLL_SPEED 0  // 0: Slow 1: Fast - default to slow
 #define ANIMATION_LOOP           1  // 0: off 1: on
