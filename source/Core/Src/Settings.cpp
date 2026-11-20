@@ -9,6 +9,11 @@
  */
 
 #include "Settings.h"
+
+// Only some BSPs (e.g. Fnirsi HS02) define a runtime buzzer volume default.
+#ifndef BUZZER_VOLUME
+#define BUZZER_VOLUME 0
+#endif
 #include "BSP.h"
 #include "Setup.h"
 #include "Translation.h"

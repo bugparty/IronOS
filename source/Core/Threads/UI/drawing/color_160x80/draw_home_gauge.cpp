@@ -1,4 +1,3 @@
-#include "ColorTheme.h"
 #include "Hs02InterSemiBoldFont.hpp"
 #include "Hs02WashFont.hpp"
 #include "OperatingModes.h"
@@ -7,6 +6,7 @@
 #include "ui_drawing.hpp"
 
 #ifdef LCD_160x80
+#include "ColorTheme.h"
 
 namespace {
 // The 2bpp framebuffer stores semantic colour indices.  Each page supplies its

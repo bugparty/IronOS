@@ -1,11 +1,13 @@
-#if defined(LCD_160x80)
-#endif
 #include "Display.hpp"
 #include "OperatingModes.h"
 #include "ScrollMessage.hpp"
+
+#ifdef LCD_160x80
 #include "ColorTheme.h"
+// n32l40x.h defines LCD as a peripheral macro; free the name for the LCD class.
 #undef LCD
 #include "LCD.hpp"
+#endif
 
 #define HELP_TEXT_TIMEOUT_TICKS (TICKS_SECOND * 3)
 /*
@@ -121,6 +123,7 @@ OperatingMode moveToNextEntry(guiContext *cxt) {
   return OperatingMode::SettingsMenu;
 }
 
+#ifdef LCD_160x80
 // Move to the previous visible entry of the current menu (wraps around to the last entry).
 static OperatingMode moveToPreviousEntry(guiContext *cxt) {
   uint16_t *mainEntry = &(cxt->scratch_state.state1);
@@ -148,6 +151,7 @@ static OperatingMode moveToPreviousEntry(guiContext *cxt) {
   cxt->transitionMode = TransitionAnimation::Up;
   return OperatingMode::SettingsMenu;
 }
+#endif
 
 OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   // Render out the current settings menu
@@ -234,6 +238,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     return false;
   };
 
+#ifdef LCD_160x80
   // Modify a button value before processing a key press if setting to swap buttons is enabled
   bool    swapButtonSettings = getSettingValue(SettingsOptions::ReverseButtonSettings);
   uint8_t buttonPress;
@@ -366,6 +371,107 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   default:
     break;
   }
+
+#else
+  // Modify a button value before processing a key press if setting to swap buttons is enabled
+  bool    swapButtonSettings = getSettingValue(SettingsOptions::ReverseButtonSettings);
+  uint8_t buttonPress;
+  switch (buttons) {
+  case BUTTON_F_LONG:
+    buttonPress = swapButtonSettings ? BUTTON_B_LONG : BUTTON_F_LONG;
+    break;
+  case BUTTON_F_SHORT:
+    buttonPress = swapButtonSettings ? BUTTON_B_SHORT : BUTTON_F_SHORT;
+    break;
+  case BUTTON_B_LONG:
+    buttonPress = swapButtonSettings ? BUTTON_F_LONG : BUTTON_B_LONG;
+    break;
+  case BUTTON_B_SHORT:
+    buttonPress = swapButtonSettings ? BUTTON_F_SHORT : BUTTON_B_SHORT;
+    break;
+  case BUTTON_OK_SHORT:
+    buttonPress = BUTTON_F_SHORT; // Dedicated OK button selects/enters, ignoring button swap
+    break;
+  case BUTTON_OK_LONG:
+    buttonPress = BUTTON_BOTH; // OK long-press goes back one level (submenu -> root -> home)
+    break;
+  default:
+    buttonPress = buttons;
+    break;
+  }
+
+  OperatingMode newMode = OperatingMode::SettingsMenu;
+  switch (buttonPress) {
+  case BUTTON_NONE:
+    (*autoRepeatAcceleration) = 0; // reset acceleration
+    (*autoRepeatTimer)        = 0; // reset acceleration
+    break;
+  case BUTTON_BOTH:
+    if (*subEntry == 0) {
+      saveSettings();
+      cxt->transitionMode = TransitionAnimation::Left;
+      return OperatingMode::HomeScreen;
+    } else {
+      cxt->transitionMode = TransitionAnimation::Left;
+      *subEntry           = 0;
+      return OperatingMode::SettingsMenu;
+    }
+    break;
+  case BUTTON_F_LONG:
+    if (xTaskGetTickCount() + (*autoRepeatAcceleration) > (*autoRepeatTimer) + PRESS_ACCEL_INTERVAL_MAX) {
+      callIncrementHandler();
+      // Update the check for if its the last version
+      bool isLastOptionForSetting = false;
+      if ((int)currentMenu[currentScreen].autoSettingOption < (int)SettingsOptions::SettingsOptionsLength) {
+        isLastOptionForSetting = isLastSettingValue(currentMenu[currentScreen].autoSettingOption);
+      }
+
+      if (isLastOptionForSetting) {
+        (*autoRepeatTimer) = TICKS_SECOND * 2;
+      } else {
+        (*autoRepeatTimer) = 0;
+      }
+      (*autoRepeatTimer) += xTaskGetTickCount();
+      (*autoRepeatAcceleration) += PRESS_ACCEL_STEP;
+      *currentMenuLength = 0; // Reset incase menu visible changes
+    }
+    break;
+  case BUTTON_F_SHORT:
+    // Increment setting
+    if (*isRenderingHelp) {
+      *isRenderingHelp = 0;
+    } else {
+      *currentMenuLength = 0; // Reset incase menu visible changes
+      if (*subEntry == 0) {
+        // In a root menu, if its null handler we enter the menu
+        if (currentMenu[currentScreen].incrementHandler != nullptr) {
+          currentMenu[currentScreen].incrementHandler();
+        } else {
+          (*subEntry) += 1;
+          cxt->transitionMode = TransitionAnimation::Right;
+        }
+      } else {
+        callIncrementHandler();
+      }
+    }
+    break;
+  case BUTTON_B_LONG:
+    if (xTaskGetTickCount() + (*autoRepeatAcceleration) > (*autoRepeatTimer) + PRESS_ACCEL_INTERVAL_MAX) {
+      (*autoRepeatTimer) = xTaskGetTickCount();
+      (*autoRepeatAcceleration) += PRESS_ACCEL_STEP;
+    } else {
+      break;
+    }
+    /* Fall through*/
+  case BUTTON_B_SHORT:
+    // Increment menu item
+    newMode = moveToNextEntry(cxt);
+    break;
+  default:
+    break;
+  }
+
+#endif
 
   if ((PRESS_ACCEL_INTERVAL_MAX - (*autoRepeatAcceleration)) < PRESS_ACCEL_INTERVAL_MIN) {
     (*autoRepeatAcceleration) = PRESS_ACCEL_INTERVAL_MAX - PRESS_ACCEL_INTERVAL_MIN;
