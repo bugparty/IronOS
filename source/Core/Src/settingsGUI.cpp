@@ -538,10 +538,14 @@ static void displayInputMinVRange(void) {
 #ifdef POW_QC
 
 static void displayQCInputV(void) {
+#ifdef MODEL_HS02
   const uint16_t voltages[] = {90, 120, 150, 200};
   auto idx = getSettingValue(SettingsOptions::QCIdealVoltage);
   if (idx > 3) idx = 3;
   uint16_t voltage = voltages[idx];
+#else
+  uint16_t voltage = getSettingValue(SettingsOptions::QCIdealVoltage);
+#endif
   Display::printNumber(voltage / 10, 2, FontStyle::LARGE);
   Display::print(LargeSymbolDot, FontStyle::LARGE);
   Display::printNumber(voltage % 10, 1, FontStyle::LARGE);

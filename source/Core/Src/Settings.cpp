@@ -65,7 +65,12 @@ static const SettingConstants settingsConstants[(int)SettingsOptions::SettingsOp
     {                     0,                                                                    15,                 1,                   SLEEP_TIME}, // SleepTime
     {                     0,                                                                     4,                 1,              CUT_OUT_SETTING}, // MinDCVoltageCells
     {                    24,                                                                    38,                 1,               RECOM_VOL_CELL}, // MinVoltageCells
-    { 0, 3, 1, 3 }, // QCIdealVoltage (0:9V, 1:12V, 2:15V, 3:20V)
+
+#if defined(MODEL_HS02A) || defined(MODEL_HS02B)
+    {                     0,                                                                     3,                 1,                            3}, // QCIdealVoltage (0:9V, 1:12V, 2:15V, 3:20V)
+#else
+    {                    90,                                                        QC_VOLTAGE_MAX,                 2,                           90}, // QCIdealVoltage
+#endif
     {                     0,                                                  MAX_ORIENTATION_MODE,                 1,             ORIENTATION_MODE}, // OrientationMode
     {                     0,                                                                     9,                 1,                  SENSITIVITY}, // Sensitivity
     {                     0,                                                                     1,                 1,               ANIMATION_LOOP}, // AnimationLoop
@@ -382,3 +387,4 @@ uint8_t getUserSelectedTipResistance() {
 #else
 uint8_t getUserSelectedTipResistance() { return tipType_t::TIP_TYPE_AUTO; }
 #endif /* TIP_TYPE_SUPPORT */
+
