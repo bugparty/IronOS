@@ -63,8 +63,16 @@ void prepareTranslations() {
   }
 }
 
-void settings_setLanguageSwitch(void) {
-  selectedLangIndex = (selectedLangIndex + 1) % LanguageCount;
+void settings_setLanguageSwitch(bool up) {
+  if (up) {
+    selectedLangIndex = (selectedLangIndex + 1) % LanguageCount;
+  } else {
+    if (selectedLangIndex == 0) {
+      selectedLangIndex = LanguageCount - 1;
+    } else {
+      selectedLangIndex--;
+    }
+  }
   writeSelectedLanguageToSettings();
   prepareTranslations();
 }

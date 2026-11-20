@@ -113,6 +113,7 @@ enum class SettingsItemIndex : uint8_t {
   SettingsReset,
   LanguageSwitch,
   SolderingTipType,
+  BuzzerVolume,
   NUM_ITEMS,
 };
 
@@ -201,7 +202,7 @@ const char *translatedString(uint16_t index);
 void prepareTranslations();
 void settings_displayLanguageSwitch(void);
 bool settings_showLanguageSwitch(void);
-void settings_setLanguageSwitch(void);
+void settings_setLanguageSwitch(bool up);
 bool isLastLanguageOption(void);
 
 #endif /* TRANSLATION_H_ */

@@ -40,7 +40,7 @@ void TIM4_IRQHandler(void) {
     TIM_ClrIntPendingBit(TIM4, TIM_INT_UPDATE);
 
     // we want to turn on the output again
-    PWMSafetyTimer--;
+    if (PWMSafetyTimer) PWMSafetyTimer--;
     // We decrement this safety value so that lockups in the
     // scheduler will not cause the PWM to become locked in an
     // active driving state.

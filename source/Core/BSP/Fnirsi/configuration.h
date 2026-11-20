@@ -6,8 +6,8 @@
  *
  */
 
-#if defined(MODEL_HS02) == 0
-#error "No model defined!"
+#if !defined(MODEL_HS02A) && !defined(MODEL_HS02B)
+#error "No model defined! Use model=HS02A or model=HS02B"
 #endif
 
 //===========================================================================
@@ -19,7 +19,7 @@
  */
 
 #define SLEEP_TEMP         150 // Default sleep temperature
-#define BOOST_TEMP         420 // Default boost temp.
+#define BOOST_TEMP         400 // Default boost temp.
 #define BOOST_MODE_ENABLED 1   // 0: Disable 1: Enable
 
 /**
@@ -76,6 +76,7 @@
  * Buzzer (annoying)
  *
  */
+#define HAS_BUZZER
 #define BUZZER_VOLUME 0 // Range: 0 - 20
 
 /**
@@ -128,7 +129,7 @@
 #define ADC_MAX_READING  (4096 * 8)  // oversample 12bit adc 8 times
 #define ADC_VDD_MV        3300       // ADC max reading millivolts
 
-// #define POW_PD 0
+#define POW_QC
 #define POW_PD_EXT 3 // TODO: implement
 #define POW_DC
 
@@ -182,17 +183,33 @@
 
 /// Use PID Control
 #define TIP_CONTROL_PID
+#if defined(MODEL_HS02B)
+#define TIP_PID_KP              10   // Matches proven Pinecilv2 value; higher drive under load
+#define TIP_PID_KI              2  // Integral climb rate is proportional to error; 700 closes a small (2-3C) load-induced droop in ~10s. Far above the Pinecilv2 reference value (6) -- this is empirically tuned, not derived; watch for slow hunting, especially as the integral bleeds off after a heavy solder joint
+#define TIP_PID_KD              1200 // C245 has a surprisingly high inertia, needs lot of dampening
+#define TIP_PID_INTEGRAL_LIMIT_SCALE 30 // Default 5 caps integral at ~4.9W; 30 (~29W) covers measured heavy-load losses (XT60 at 430C draws 15-18W)
+#else
 #define TIP_PID_KP              40   // Matches proven Pinecilv2 value; higher drive under load
 #define TIP_PID_KI              700  // Integral climb rate is proportional to error; 700 closes a small (2-3C) load-induced droop in ~10s. Far above the Pinecilv2 reference value (6) -- this is empirically tuned, not derived; watch for slow hunting, especially as the integral bleeds off after a heavy solder joint
 #define TIP_PID_KD              8000 // C245 has a surprisingly high inertia, needs lot of dampening
 #define TIP_PID_INTEGRAL_LIMIT_SCALE 30 // Default 5 caps integral at ~4.9W; 30 (~29W) covers measured heavy-load losses (XT60 at 430C draws 15-18W)
+#endif
 
 /// Default Control if no other controller is defined
 #define TIP_THERMAL_MASS        0    // Not used for PID
 #define TIP_THERMAL_INERTIA     0    // Not used for PID
+#if defined(MODEL_HS02B)
+#define TIP_RESISTANCE          20   // C210 is around 2.0R
+#else
 #define TIP_RESISTANCE          25   // C245 is around 2.5R
+#endif
+
+/// Default Control if no other controller is defined
+#define TIP_THERMAL_MASS        0    // Not used for PID
+#define TIP_THERMAL_INERTIA     0    // Not used for PID
 
 #define FLASH_LOGOADDR      (0x08000000 + (122 * 1024)) // 2KB up to address 0x0801F000 (124 * 1024)
 #define SETTINGS_START_PAGE (0x08000000 + (120 * 1024))
 
 #define LCD_160x80          1
+#define HAS_OK_BUTTON       1

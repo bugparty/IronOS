@@ -9,6 +9,7 @@
 #include "LCD.hpp"
 #ifdef LCD_160x80
 
+#include "ColorTheme.h"
 #include "LCD_Port.hpp"
 #include "Settings.h"
 #include "Translation.h"
@@ -30,14 +31,16 @@ uint8_t *LCD::activeColorBuffer    = LCD::screenBuffer;
 uint32_t LCD::displayChecksum;
 bool     LCD::colorModeActive = false;
 uint8_t  LCD::loopCounter;
+uint16_t LCD::monoBg  = THEME_MONO_BG;
+uint16_t LCD::monoInk = THEME_MONO_INK;
 
 // True (non-inverted) RGB565 colours; refreshColor() inverts each one on the way out because the
 // panel runs with INVON. Index 0 stays background so clearScreenColor()'s memset(0) blanks to it.
 const uint16_t LCD::palette2bpp[4] = {
-    0x0862, // background (navy)
-    0xF77C, // ink (off-white)
-    0xFBC5, // ember (heating)
-    0x45B8, // cool (idle/sleep)
+    THEME_BACKGROUND,
+    THEME_INK,
+    THEME_HEATING,
+    THEME_COOL,
 };
 const uint16_t *LCD::activePalette2bpp = LCD::palette2bpp;
 
@@ -106,9 +109,81 @@ FRToSSPI::SPI_CMD lcdSetAreaCmds[] = {
     {ST7735_RAMWR, FRToSSPI::SPI_CMD_PAYLOAD, 0,                                                               NULL},
 };
 
+void LCD::refreshMono() {
+  // Same column-major scan as refreshColor(). The panel runs INVON, so send the inverse colour.
+  // A SET bit in the 1bpp buffer is the "ink" (text) pixel.
+  const uint16_t bgWire  = (uint16_t)~monoBg;
+  const uint16_t inkWire = (uint16_t)~monoInk;
+  uint8_t        col[LCD_HEIGHT * 2];
+  setDrawingWindow(0, 0, LCD_WIDTH, LCD_HEIGHT);
+  for (uint16_t x = 0; x < LCD_WIDTH; x++) {
+    for (uint16_t y = 0; y < LCD_HEIGHT; y++) {
+      const bool     on = (stripPointers[y >> 3][x] >> (y & 7)) & 1;
+      const uint16_t c  = on ? inkWire : bgWire;
+      col[y * 2]        = (uint8_t)(c >> 8);
+      col[y * 2 + 1]    = (uint8_t)(c & 0xFF);
+    }
+    SPI_CLASS::fastSend(col, sizeof(col));
+  }
+}
+
 void LCD::drawNativeImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *rgb565) {
   setDrawingWindow(x, y, w, h);
   SPI_CLASS::fastSend(rgb565, (size_t)w * h * 2);
+}
+
+void LCD::drawRLEImage(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *rleData, size_t rleLen, const uint16_t *palette, uint8_t scale) {
+  // Palette-indexed RLE, column-major. Byte = (idx<<4)|run; run==0 -> next byte is the run (16..255).
+  // `palette` holds wire-ready (already inverted) RGB565. scale is 1 or 2 (pixel doubling).
+  if (scale < 1 || scale > 2) {
+    scale = 1;
+  }
+  setDrawingWindow(x, y, w, h);
+  const uint8_t srcW     = w / scale;
+  const uint8_t srcH     = h / scale;
+  const size_t  colBytes = (size_t)h * 2;
+
+  uint8_t        out[2][LCD_HEIGHT * 2 * 2]; // one output "super column" (scale columns), double buffered
+  uint8_t        idxCol[LCD_HEIGHT];
+  uint8_t        bufIdx = 0, pos = 0, cols = 0;
+
+  auto flushColumn = [&]() {
+    uint8_t *o = out[bufIdx];
+    for (uint8_t py = 0; py < srcH; py++) {
+      const uint16_t c = palette[idxCol[py] & 0x0F];
+      for (uint8_t s = 0; s < scale; s++) {
+        *o++ = (uint8_t)(c >> 8);
+        *o++ = (uint8_t)(c & 0xFF);
+      }
+    }
+    if (scale == 2) {
+      memcpy(out[bufIdx] + colBytes, out[bufIdx], colBytes);
+    }
+    SPI_CLASS::fastSend(out[bufIdx], colBytes * scale);
+    bufIdx ^= 1;
+    pos = 0;
+    cols++;
+  };
+
+  size_t i = 0;
+  while (i < rleLen && cols < srcW) {
+    const uint8_t  b   = rleData[i++];
+    const uint8_t  idx = b >> 4;
+    uint16_t       run = b & 0x0F;
+    if (run == 0) {
+      if (i >= rleLen) {
+        break;
+      }
+      run = rleData[i++];
+    }
+    while (run > 0 && cols < srcW) {
+      idxCol[pos++] = idx;
+      if (pos >= srcH) {
+        flushColumn();
+      }
+      run--;
+    }
+  }
 }
 
 void LCD::setDrawingWindow(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
@@ -555,7 +630,8 @@ void LCD::drawGlyph2bpp(uint16_t charCode, FontStyle fontStyle, uint8_t x, uint8
 void LCD::drawTextColor(const char *str, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex, uint8_t maxChars) {
   const uint8_t *next      = reinterpret_cast<const uint8_t *>(str);
   const uint8_t  fontWidth = (fontStyle == FontStyle::SMALL) ? kSmallW : (fontStyle == FontStyle::LARGE ? kLargeW : kSmallW);
-  while (*next && maxChars--) {
+  while (*next && maxChars > 0) {
+    maxChars--;
     uint16_t index;
     if (*next <= 0xF0) {
       index = *next;

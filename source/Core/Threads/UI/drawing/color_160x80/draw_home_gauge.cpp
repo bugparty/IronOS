@@ -6,16 +6,17 @@
 #include "ui_drawing.hpp"
 
 #ifdef LCD_160x80
+#include "ColorTheme.h"
 
 namespace {
 // The 2bpp framebuffer stores semantic colour indices.  Each page supplies its
 // own four-colour mapping, so the Wash UI stays legible without gradients.
 constexpr uint8_t  kBg = 0, kInk = 1, kAccent = 2, kMuted = 3;
 constexpr uint8_t  kScreenWidth                           = 160;
-constexpr uint16_t kIdlePalette[4]                        = {0x0862, 0xF77C, 0x45B8, 0x536A};
-constexpr uint16_t kSolderPalette[4]                      = {0x28A0, 0xF77C, 0xFBC5, 0x9B48};
-constexpr uint16_t kBoostPalette[4]                       = {0x30C0, 0xF77C, 0xFBC5, 0xB344};
-constexpr uint16_t kSleepPalette[4]                       = {0x0924, 0xF77C, 0x45B8, 0x4B8F};
+constexpr uint16_t kIdlePalette[4] = {THEME_IDLE_BG, THEME_IDLE_INK, THEME_IDLE_ACCENT, THEME_IDLE_DIM};
+constexpr uint16_t kSolderPalette[4] = {THEME_SOLDER_BG, THEME_SOLDER_INK, THEME_SOLDER_ACCENT, THEME_SOLDER_DIM};
+constexpr uint16_t kBoostPalette[4] = {THEME_BOOST_BG, THEME_BOOST_INK, THEME_BOOST_ACCENT, THEME_BOOST_DIM};
+constexpr uint16_t kSleepPalette[4] = {THEME_SLEEP_BG, THEME_SLEEP_INK, THEME_SLEEP_ACCENT, THEME_SLEEP_DIM};
 constexpr uint8_t  kWashGlyphI[Hs02WashFont::kGlyphBytes] = {4, 4, 0xFC, 4, 4, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0};
 constexpr uint8_t  kWashGlyphU[Hs02WashFont::kGlyphBytes] = {0xFC, 0, 0, 0, 0xFC, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0};
 constexpr uint8_t  kWashCustomGlyphAdvance                = 6;

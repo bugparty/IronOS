@@ -176,6 +176,9 @@ void guiRenderLoop(void) {
   // Post draw we handle any state transitions
 
   if (newMode != currentOperatingMode) {
+    if (currentOperatingMode == OperatingMode::Soldering) {
+      setBuzzer(false);
+    }
     context.viewEnterTime = xTaskGetTickCount();
     context.previousMode  = currentOperatingMode;
     // If the previous mode is the startup logo; we dont want to return to it, but instead dispatch out to either home or soldering

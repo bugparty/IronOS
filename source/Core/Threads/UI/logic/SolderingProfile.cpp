@@ -21,6 +21,8 @@ OperatingMode gui_solderingProfileMode(const ButtonState buttons, guiContext *cx
   uint16_t profileCurrentTargetTemp = 0;
 
   switch (buttons) {
+  case BUTTON_OK_SHORT:
+  case BUTTON_OK_LONG:
   case BUTTON_BOTH:
   case BUTTON_B_LONG:
     cxt->transitionMode = TransitionAnimation::Right;

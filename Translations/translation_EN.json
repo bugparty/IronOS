@@ -257,7 +257,7 @@
     },
     "TemperatureUnit": {
       "displayText": "Temperature\nunit",
-      "description": "C=°Celsius | F=°Fahrenheit"
+      "description": "C=\u00b0Celsius | F=\u00b0Fahrenheit"
     },
     "DisplayRotation": {
       "displayText": "Display\norientation",
@@ -317,7 +317,7 @@
     },
     "CalibrateCJC": {
       "displayText": "Calibrate CJC\nat next boot",
-      "description": "Calibrate Cold Junction Compensation at next boot (not required if Delta T is < 5°C)"
+      "description": "Calibrate Cold Junction Compensation at next boot (not required if Delta T is < 5\u00b0C)"
     },
     "VoltageCalibration": {
       "displayText": "Calibrate\ninput voltage",
@@ -346,6 +346,10 @@
     "SolderingTipType": {
       "displayText": "Soldering\nTip Type",
       "description": "Select the tip type fitted"
+    },
+    "BuzzerVolume": {
+      "displayText": "Buzzer\nvolume",
+      "description": "Buzzer volume (0 = Off)"
     }
   },
   "gaugeLabels": {

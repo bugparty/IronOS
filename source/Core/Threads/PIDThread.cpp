@@ -149,6 +149,43 @@ template <class T, T Kp, T Ki, T Kd, T integral_limit_scale> struct PID {
   T previous_error_term;
   T integration_running_sum;
 
+  // Only for HS02B 0.1C step
+#ifdef MODEL_HS02B
+  T update(const T set_point, const T new_reading, const TickType_t interval_ms, const T max_output) {
+    // set_point, new_reading are x10 (0.1C) step
+    const T target_delta = set_point - new_reading;
+
+    const T kp_result = (Kp * target_delta) / 10;
+    T       ki_result = integration_running_sum / 1000;
+    T       derivative = (target_delta - previous_error_term);
+    T       kd_result  = (Kd * derivative) / (T)(10 * interval_ms);
+
+    T output = kp_result + ki_result + kd_result;
+
+    const bool saturated_high = (output >= max_output) && (target_delta > 0);
+    const bool saturated_low  = (output <= 0) && (target_delta < 0);
+    if (!saturated_high && !saturated_low) {
+      integration_running_sum += (target_delta * (T)interval_ms * Ki) / 1000;
+    }
+    const T limit = integral_limit_scale * max_output * 10;
+    if (integration_running_sum > limit) {
+      integration_running_sum = limit;
+    } else if (integration_running_sum < -limit) {
+      integration_running_sum = -limit;
+    }
+
+    if (output > max_output) {
+      output = max_output;
+    } else if (output < 0) {
+      output = 0;
+    }
+    previous_error_term = target_delta;
+    if (set_point < MIN_TEMP_C * 10) {
+      output = 0;
+    }
+    return output;
+  }
+#else
   T update(const T set_point, const T new_reading, const TickType_t interval_ms, const T max_output) {
     const T target_delta = set_point - new_reading;
 
@@ -203,6 +240,7 @@ template <class T, T Kp, T Ki, T Kd, T integral_limit_scale> struct PID {
 
     return output;
   }
+  #endif
 };
 #elif defined(TIP_CONTROL_ARDC1)
 template <class T> struct ARDC1 {
@@ -312,7 +350,11 @@ int32_t getPIDResultX10Watts(TemperatureType_t set_point, TemperatureType_t curr
   // Note on powerStore. On update, if the value is provided in X10 (W) units then inertia shall be provided
   // in X10 (J / °C) units as well.
 
+#ifdef MODEL_HS02B
+  return ctrl.update(set_point * 10, current_reading, interval, getX10WattageLimits());
+#else
   return ctrl.update(set_point, current_reading / 10, interval, getX10WattageLimits());
+#endif
 #elif defined(TIP_CONTROL_ARDC1)
   return ctrl.update(set_point, current_reading / 10.0f, interval / 1000.0f, getX10WattageLimits());
 #else

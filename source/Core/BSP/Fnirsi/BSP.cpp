@@ -29,7 +29,11 @@ volatile uint8_t  pendingPWM     = 0;
 // Our main PWM timer runs at 20Hz, 400 ticks per cycle (8kHz tick)
 // ADC runs at 8MHz and needs less than one timer tick to perform all conversions
 const uint16_t        powerPWM         = 395;                                        // pulse when TIM1 output power is enabled
+#if defined(MODEL_HS02B)
+static const uint16_t holdoffTicks     = 16;                                          // holdoff after TIM1 power pulse
+#else
 static const uint16_t holdoffTicks     = 4;                                          // holdoff after TIM1 power pulse
+#endif
 static const uint16_t tempMeasureTicks = 1;                                          // measurement period
 uint16_t              totalPWM         = powerPWM + tempMeasureTicks + holdoffTicks; // TIM4 init period, the full PWM cycle
 
@@ -186,10 +190,11 @@ void setStatusLED(const enum StatusLED state) {
 }
 
 void setBuzzer(bool on) {
-  // 63 = 50% duty cycle -> too lound and too much current
-  // 20 = 16% duty cycle -> max reasonable
-  static_assert(BUZZER_VOLUME < 20);
-  TIM_SetCmp1(TIM2, on ? BUZZER_VOLUME : 0);
+  uint16_t volume = getSettingValue(SettingsOptions::BuzzerVolume);
+  if (volume > 19) {
+    volume = 19;
+  }
+  TIM_SetCmp1(TIM2, on ? volume : 0);
 }
 
 #ifdef TIP_RESISTANCE_SENSE_Pin
@@ -312,14 +317,32 @@ uint16_t getTipInertia() {
 }
 
 void showBootLogo(void) {
-  // Blit the colour FNIRSI logo (extracted from stock firmware) straight to the panel,
-  // then reveal it and hold until a button is pressed or the timeout elapses.
+#ifdef FNIRSI_LOGO_ANIMATION
+  LCD::drawRLEImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H,
+                    fnirsiBootLogoData + fnirsiBootLogoOffsets[0], fnirsiBootLogoLengths[0], fnirsiBootLogoPalette, FNIRSI_LOGO_SCALE);
+  vTaskDelay(TICKS_SECOND / 60);
+  LCD::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
+
+  const TickType_t frameTicks = (FNIRSI_LOGO_FRAME_DELAY_MS * TICKS_SECOND) / 1000;
+  for (uint16_t f = 1; f < FNIRSI_LOGO_FRAME_COUNT; f++) {
+    if (getButtonState() != BUTTON_NONE) {
+      return;
+    }
+    TickType_t start = xTaskGetTickCount();
+    LCD::drawRLEImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H,
+                      fnirsiBootLogoData + fnirsiBootLogoOffsets[f], fnirsiBootLogoLengths[f], fnirsiBootLogoPalette, FNIRSI_LOGO_SCALE);
+    TickType_t elapsed = xTaskGetTickCount() - start;
+    if (elapsed < frameTicks) {
+      vTaskDelay(frameTicks - elapsed);
+    }
+  }
+  waitForButtonPressOrTimeout(TICKS_SECOND / 2);
+#else
   LCD::drawNativeImage(FNIRSI_LOGO_X, FNIRSI_LOGO_Y, FNIRSI_LOGO_W, FNIRSI_LOGO_H, fnirsiBootLogo);
-  // SPI has drained here, but wait for the panel to scan the new GRAM once before
-  // enabling its backlight; this avoids exposing the previous white scanline.
   vTaskDelay(TICKS_SECOND / 60);
   LCD::setBrightness(getSettingValue(SettingsOptions::DisplayBrightness));
   waitForButtonPressOrTimeout(TICKS_SECOND * 2);
+#endif
 }
 
 bool getFUS302IRQLow() { return false; }

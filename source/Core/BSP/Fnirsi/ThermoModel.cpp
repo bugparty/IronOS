@@ -41,6 +41,21 @@ uint32_t interpolateFallbackTempCx10(uint32_t tipuV, uint32_t loweruV, uint32_t 
 }
 
 uint32_t fallbackTipTempCx10(uint32_t tipuV) {
+  #if defined(MODEL_HS02B)
+  if (tipuV <= 650) {
+    return interpolateFallbackTempCx10(tipuV, 0, 250, 650, 1850);
+  }
+  if (tipuV <= 950) {
+    return interpolateFallbackTempCx10(tipuV, 650, 1850, 950, 2500);
+  }
+  if (tipuV <= 1300) {
+    return interpolateFallbackTempCx10(tipuV, 950, 2500, 1300, 3200);
+  }
+  if (tipuV <= 1700) {
+    return interpolateFallbackTempCx10(tipuV, 1300, 3200, 1700, 4000);
+  }
+  return interpolateFallbackTempCx10(tipuV, 1700, 4000, 2200, 5000);
+  #else
   // Absolute tip temperatures measured on one HS-02A without usable factory
   // calibration. The 0uV point is the midpoint of a 28-33C cold-tip reading.
   if (tipuV <= 5400) {
@@ -59,6 +74,7 @@ uint32_t fallbackTipTempCx10(uint32_t tipuV) {
     return interpolateFallbackTempCx10(tipuV, 10540, 4000, 12090, 4500);
   }
   return interpolateFallbackTempCx10(tipuV, 12090, 4500, 13640, 5000);
+  #endif
 }
 
 bool     factoryCalChecked = false;
@@ -69,6 +85,10 @@ uint32_t adcCount340       = 0;
 
 void loadFactoryCal() {
   factoryCalChecked    = true;
+  #if defined(MODEL_HS02B)
+  // HS-02B (C210) uses a different thermocouple curve than HS-02A (C245) stock calibration
+  return;
+  #else
   const uint32_t *page = (const uint32_t *)stockSettingsPageAddr;
   if (page[0] == 0xFFFFFFFF) {
     return; // Erased page; stock firmware never ran / settings wiped
@@ -92,6 +112,7 @@ void loadFactoryCal() {
     return;
   }
   factoryCalValid = true;
+  #endif
 }
 } // namespace
 
@@ -108,21 +129,24 @@ bool hs02GetFactoryTipCal(uint32_t &a140, uint32_t &a240, uint32_t &a340) {
 }
 
 TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
-  if (!factoryCalChecked) {
-    loadFactoryCal();
+#if defined(MODEL_HS02B)
+  // HS-02B (C210): NTC 100K 써미스터 교차 실측 보정 곡선 (395uV = +160.0C 상승)
+  if (tipuVDelta <= 395) {
+    return (tipuVDelta * 81) / 20;
   }
+  if (tipuVDelta <= 820) {
+    return 1600 + ((tipuVDelta - 395) * 76) / 20;
+  }
+  return 3215 + ((tipuVDelta - 820) * 70) / 20;
+#else
+// HS-02A (C245): Default factory calibration and fallback curve
+if (!factoryCalChecked) {
+  loadFactoryCal();
+}
 
   if (factoryCalValid) {
-    // Convert IronOS uV back to stock 12-bit ADC counts (x10 for precision) by
-    // inverting the exact forward conversion used in convertTipRawADCTouV:
-    //   uV = raw * (ADC_VDD_MV * 1000 / ADC_MAX_READING) / OP_AMP_GAIN_STAGE
-    // with stockCount = raw / 8 (the x8 oversampling). The gain assumption
-    // cancels out since the same constants were used to produce tipuVDelta.
-    //   countX10 = uV * OP_AMP_GAIN_STAGE * 4096 * 10 / (ADC_VDD_MV * 1000)
-    //            = uV * (233472/33) / 10000 = uV * 0.70749 for the 57x gain stage
     const uint32_t countX10 = (tipuVDelta * ((OP_AMP_GAIN_STAGE * 4096) / 33)) / 10000;
 
-    // Stock piecewise-linear curve; last segment also extrapolates above 340C.
     uint32_t tempX10;
     if (countX10 <= adcCount140 * 10) {
       tempX10 = (countX10 * 140) / adcCount140;
@@ -131,16 +155,11 @@ TemperatureType_t TipThermoModel::convertuVToDegCx10(uint32_t tipuVDelta) {
     } else {
       tempX10 = 2400 + ((countX10 - adcCount240 * 10) * 100) / (adcCount340 - adcCount240);
     }
-    // The stock curve outputs ABSOLUTE tip temperature (factory calibration was done
-    // at ~25C ambient, baked into the curve), but this function must return the
-    // delta above the handle; the caller adds the handle temperature back on top.
     return (tempX10 > 250) ? (tempX10 - 250) : 0;
   }
 
-  // The MCU die sensor remains around 41-43C and is not the connector's cold
-  // junction temperature. Use the measured absolute-temperature curve, then
-  // cancel the handle value which the generic caller adds back.
   const uint32_t handleTempCx10 = getHandleTemperature(0);
   const uint32_t tipTempCx10    = fallbackTipTempCx10(tipuVDelta);
   return (tipTempCx10 > handleTempCx10) ? tipTempCx10 - handleTempCx10 : 0;
+#endif
 }
