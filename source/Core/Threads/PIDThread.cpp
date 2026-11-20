@@ -350,7 +350,7 @@ int32_t getPIDResultX10Watts(TemperatureType_t set_point, TemperatureType_t curr
   // Note on powerStore. On update, if the value is provided in X10 (W) units then inertia shall be provided
   // in X10 (J / °C) units as well.
 
-#ifdef MODEL_HS02
+#ifdef MODEL_HS02B
   return ctrl.update(set_point * 10, current_reading, interval, getX10WattageLimits());
 #else
   return ctrl.update(set_point, current_reading / 10, interval, getX10WattageLimits());
