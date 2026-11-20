@@ -37,5 +37,6 @@
 
 // ---- Mono screens (settings menu, temperature adjust, debug) ----
 #define THEME_MONO_BG       THEME_IDLE_BG // same as the idle screen so the UI looks continuous
-#define THEME_MONO_INK      RGB565(0xFF, 0xFF, 0xFF)
-#define THEME_MONO_INK_EDIT RGB565(0xFF, 0xB8, 0x00) // text colour while a setting value is being edited
+#define THEME_MONO_INK      THEME_IDLE_ACCENT       // accent colour when browsing
+#define THEME_MONO_INK_EDIT THEME_BOOST_INK         // boost text colour while editing
+#define THEME_MONO_BG_EDIT  THEME_BOOST_BG          // boost background while editing

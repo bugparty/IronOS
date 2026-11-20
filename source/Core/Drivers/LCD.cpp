@@ -630,7 +630,8 @@ void LCD::drawGlyph2bpp(uint16_t charCode, FontStyle fontStyle, uint8_t x, uint8
 void LCD::drawTextColor(const char *str, uint8_t x, uint8_t y, FontStyle fontStyle, uint8_t colorIndex, uint8_t maxChars) {
   const uint8_t *next      = reinterpret_cast<const uint8_t *>(str);
   const uint8_t  fontWidth = (fontStyle == FontStyle::SMALL) ? kSmallW : (fontStyle == FontStyle::LARGE ? kLargeW : kSmallW);
-  while (*next && maxChars--) {
+  while (*next && maxChars > 0) {
+    maxChars--;
     uint16_t index;
     if (*next <= 0xF0) {
       index = *next;
