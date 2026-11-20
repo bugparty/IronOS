@@ -64,6 +64,16 @@ def read_translation(json_root: Union[str, Path], lang_code: str) -> dict:
 
     validate_langcode_matches_content(filename, lang)
 
+    if lang_code != "EN":
+        # Entries that so far exist only in the English dictionary (e.g. newly
+        # added options) fall back to English instead of breaking the build.
+        english = load_json(os.path.join(json_root, "translation_EN.json"))
+        for section, items in english.items():
+            if isinstance(items, dict):
+                target = lang.setdefault(section, {})
+                for key, value in items.items():
+                    target.setdefault(key, value)
+
     return lang
 
 
@@ -77,15 +87,24 @@ def filter_translation(lang: dict, defs: dict, macros: frozenset):
 
         return False
 
+    # A dictionary may legitimately lack an entry for an excluded record (e.g. a
+    # feature that so far only exists in the English dictionary). There is
+    # nothing to blank in that case, so skip it instead of raising KeyError.
     for category in ("menuOptions", "menuGroups", "menuValues"):
         for _, record in enumerate(defs[category]):
             if check_excluded(record):
-                lang[category][record["id"]]["displayText"] = ""
-                lang[category][record["id"]]["description"] = ""
+                entry = lang.get(category, {}).get(record["id"])
+                if entry is None:
+                    continue
+                entry["displayText"] = ""
+                entry["description"] = ""
 
     for _, record in enumerate(defs["messagesWarn"]):
         if check_excluded(record):
-            lang["messagesWarn"][record["id"]]["message"] = ""
+            entry = lang.get("messagesWarn", {}).get(record["id"])
+            if entry is None:
+                continue
+            entry["message"] = ""
 
     return lang
 
