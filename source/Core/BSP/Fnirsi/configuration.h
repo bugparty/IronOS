@@ -212,3 +212,4 @@
 #define SETTINGS_START_PAGE (0x08000000 + (120 * 1024))
 
 #define LCD_160x80          1
+#define HAS_OK_BUTTON       1
