@@ -2,7 +2,7 @@
 #include "OperatingModes.h"
 #include "ScrollMessage.hpp"
 
-#ifdef LCD_160x80
+#if defined(LCD_160x80) || defined(HAS_OK_BUTTON)
 #include "ColorTheme.h"
 // n32l40x.h defines LCD as a peripheral macro; free the name for the LCD class.
 #undef LCD
@@ -237,7 +237,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   // Now handle user button input
   auto callIncrementHandler = [&]() {
     if (currentMenu[currentScreen].incrementHandler != nullptr) {
-      currentMenu[currentScreen].incrementHandler();
+      currentMenu[currentScreen].incrementHandler(true);
     } else if ((int)currentMenu[currentScreen].autoSettingOption < (int)SettingsOptions::SettingsOptionsLength) {
       nextSettingValue(currentMenu[currentScreen].autoSettingOption);
     }
@@ -331,7 +331,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     } else if (*subEntry == 0) {
       *currentMenuLength = 0;
       if (currentMenu[currentScreen].incrementHandler != nullptr) {
-        currentMenu[currentScreen].incrementHandler();
+        currentMenu[currentScreen].incrementHandler(true);
       } else {
         (*subEntry) += 1;
         cxt->transitionMode = TransitionAnimation::Right;
@@ -342,6 +342,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     break;
   case BUTTON_F_SHORT:
     if (editing) {
+      *isRenderingHelp = 0;
       stepValue(false);
     } else {
       newMode = moveToPreviousEntry(cxt);
@@ -350,6 +351,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   case BUTTON_F_LONG:
     if (repeatReady()) {
       if (editing) {
+        *isRenderingHelp = 0;
         stepValue(false);
       } else {
         newMode = moveToPreviousEntry(cxt);
@@ -358,6 +360,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     break;
   case BUTTON_B_SHORT:
     if (editing) {
+      *isRenderingHelp = 0;
       stepValue(true);
     } else {
       newMode = moveToNextEntry(cxt);
@@ -366,6 +369,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   case BUTTON_B_LONG:
     if (repeatReady()) {
       if (editing) {
+        *isRenderingHelp = 0;
         stepValue(true);
         if (hasAutoOption && isLastSettingValue(currentMenu[currentScreen].autoSettingOption)) {
           (*autoRepeatTimer) = xTaskGetTickCount() + TICKS_SECOND * 2;
@@ -400,11 +404,11 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     if (*isRenderingHelp) {
       *isRenderingHelp = 0;
     } else if (editing) {
-      stepValue(false);
+      *isEditing = 0; // Finish editing, stay in submenu
     } else if (*subEntry == 0) {
       *currentMenuLength = 0;
       if (currentMenu[currentScreen].incrementHandler != nullptr) {
-        currentMenu[currentScreen].incrementHandler();
+        currentMenu[currentScreen].incrementHandler(true);
       } else {
         (*subEntry) += 1;
         cxt->transitionMode = TransitionAnimation::Right;
@@ -416,11 +420,12 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   case BUTTON_F_LONG:
     if (repeatReady()) {
       if (editing) {
+        *isRenderingHelp = 0;
         stepValue(false);
       } else if (*subEntry == 0) {
         *currentMenuLength = 0;
         if (currentMenu[currentScreen].incrementHandler != nullptr) {
-          currentMenu[currentScreen].incrementHandler();
+          currentMenu[currentScreen].incrementHandler(true);
         } else {
           (*subEntry) += 1;
           cxt->transitionMode = TransitionAnimation::Right;
@@ -432,6 +437,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
     break;
   case BUTTON_B_SHORT:
     if (editing) {
+      *isRenderingHelp = 0;
       stepValue(true);
     } else {
       newMode = moveToNextEntry(cxt);
@@ -440,6 +446,7 @@ OperatingMode gui_SettingsMenu(const ButtonState buttons, guiContext *cxt) {
   case BUTTON_B_LONG:
     if (repeatReady()) {
       if (editing) {
+        *isRenderingHelp = 0;
         stepValue(true);
         if (hasAutoOption && isLastSettingValue(currentMenu[currentScreen].autoSettingOption)) {
           (*autoRepeatTimer) = xTaskGetTickCount() + TICKS_SECOND * 2;

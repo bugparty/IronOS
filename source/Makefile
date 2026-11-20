@@ -597,6 +597,8 @@ $(OUT_OBJS_S): $(OUTPUT_DIR)/%.o: %.S Makefile
 
 Core/Gen/Translation.%.cpp $(OUTPUT_DIR)/Core/Gen/translation.files/%.pickle: ../Translations/translation_%.json \
 		../Translations/make_translation.py           \
+		../Translations/wash_font.py                   \
+		../Translations/fonts/fusion-pixel-10px-proportional-hs02.bdf \
 		../Translations/translations_definitions.json \
 		../Translations/font_tables.py                \
 		Makefile ../Translations/wqy-bitmapsong/wenquanyi_9pt.bdf \
@@ -612,9 +614,17 @@ Core/Gen/Translation.%.cpp $(OUTPUT_DIR)/Core/Gen/translation.files/%.pickle: ..
 		--large-font "$(LARGE_FONT)" \
 		$*
 
-Core/Gen/macros.txt: Makefile
+Core/Gen/macros.txt: FORCE Makefile
 	@test -d "$(CURDIR)/Core/Gen" || mkdir -p "$(CURDIR)/Core/Gen"
-	echo "#include <configuration.h>" | $(CC) -dM -E $(CFLAGS) -MF "$(CURDIR)/Core/Gen/macros.tmp" - > "$(CURDIR)/Core/Gen/macros.txt"
+	echo "#include <configuration.h>" | $(CC) -dM -E $(CFLAGS) -MF "$(CURDIR)/Core/Gen/macros.tmp" - > "$(CURDIR)/Core/Gen/macros.txt.tmp"
+	@if ! cmp -s "$(CURDIR)/Core/Gen/macros.txt.tmp" "$(CURDIR)/Core/Gen/macros.txt"; then \
+		mv "$(CURDIR)/Core/Gen/macros.txt.tmp" "$(CURDIR)/Core/Gen/macros.txt"; \
+	else \
+		rm "$(CURDIR)/Core/Gen/macros.txt.tmp"; \
+	fi
+
+.PHONY: FORCE
+FORCE:
 
 # The recipes to produce compressed translation data
 
@@ -688,6 +698,8 @@ $(HEXFILE_DIR)/$(model)_multi_compressed_$(2).elf: \
 
 Core/Gen/Translation_multi.$(1).cpp: $(patsubst %,../Translations/translation_%.json,$(3)) \
 		../Translations/make_translation.py           \
+		../Translations/wash_font.py                   \
+		../Translations/fonts/fusion-pixel-10px-proportional-hs02.bdf \
 		../Translations/translations_definitions.json \
 		../Translations/font_tables.py                \
 		Makefile ../Translations/wqy-bitmapsong/wenquanyi_9pt.bdf \

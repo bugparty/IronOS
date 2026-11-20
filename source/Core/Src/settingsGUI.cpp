@@ -36,12 +36,12 @@ static void displayShutdownTime(void);
 static bool showSleepOptions(void);
 
 #ifndef NO_SLEEP_MODE
-static void setSleepTemp(void);
+static void setSleepTemp(bool up);
 static void displaySleepTemp(void);
 static void displaySleepTime(void);
 #endif /* *not* NO_SLEEP_MODE */
 
-static void setTempF(void);
+static void setTempF(bool up);
 static void displayTempF(void);
 static void displayAdvancedSolderingScreens(void);
 static void displayAdvancedIDLEScreens(void);
@@ -55,20 +55,20 @@ static void displayBluetoothLE(void);
 #endif /* BLE_ENABLED */
 
 #ifndef NO_DISPLAY_ROTATE
-static void setDisplayRotation(void);
+static void setDisplayRotation(bool up);
 static void displayDisplayRotation(void);
 #endif /* *not* NO_DISPLAY_ROTATE */
 
-static void setBoostTemp(void);
+static void setBoostTemp(bool up);
 static void displayBoostTemp(void);
 
 #ifdef PROFILE_SUPPORT
-static void setProfilePreheatTemp();
-static void setProfilePhase1Temp();
-static void setProfilePhase2Temp();
-static void setProfilePhase3Temp();
-static void setProfilePhase4Temp();
-static void setProfilePhase5Temp();
+static void setProfilePreheatTemp(bool up);
+static void setProfilePhase1Temp(bool up);
+static void setProfilePhase2Temp(bool up);
+static void setProfilePhase3Temp(bool up);
+static void setProfilePhase4Temp(bool up);
+static void setProfilePhase5Temp(bool up);
 static void displayProfilePhases(void);
 static void displayProfilePreheatTemp(void);
 static void displayProfilePreheatSpeed(void);
@@ -93,10 +93,10 @@ static bool showProfilePhase5Options(void);
 static void displayAutomaticStartMode(void);
 static void displayLockingMode(void);
 static void displayCoolingBlinkEnabled(void);
-static void setResetSettings(void);
-static void setCalibrate(void);
+static void setResetSettings(bool up);
+static void setCalibrate(bool up);
 static void displayCalibrate(void);
-static void setCalibrateVIN(void);
+static void setCalibrateVIN(bool up);
 static void displayTempChangeShortStep(void);
 static void displayTempChangeLongStep(void);
 static void displayPowerPulse(void);
@@ -584,26 +584,45 @@ static void displayUSBPDMode(void) {
 
 #endif /* POW_PD */
 
-static void setBoostTemp(void) {
+static void setBoostTemp(bool up) {
   uint16_t value = getSettingValue(SettingsOptions::BoostTemp);
   if (getSettingValue(SettingsOptions::TemperatureInF)) {
-    if (value == 0) {
-      value = MIN_BOOST_TEMP_F; // loop back at 480
+    if (up) {
+      if (value == 0) {
+        value = MIN_BOOST_TEMP_F; // loop back at 480
+      } else {
+        value += 20; // Go up 20F at a time
+      }
+      if (value >= MAX_TEMP_F) {
+        value = 0; // jump to off
+      }
     } else {
-      value += 20; // Go up 20F at a time
-    }
-
-    if (value >= MAX_TEMP_F) {
-      value = 0; // jump to off
+      if (value == 0) {
+        value = MAX_TEMP_F - 20; // wrap to max
+      } else if (value <= MIN_BOOST_TEMP_F) {
+        value = 0; // go to off
+      } else {
+        value -= 20;
+      }
     }
   } else {
-    if (value == 0) {
-      value = MIN_BOOST_TEMP_C; // loop back at 250
+    if (up) {
+      if (value == 0) {
+        value = MIN_BOOST_TEMP_C; // loop back at 250
+      } else {
+        value += 10; // Go up 10C at a time
+      }
+      if (value > MAX_TEMP_C) {
+        value = 0; // Go to off state
+      }
     } else {
-      value += 10; // Go up 10C at a time
-    }
-    if (value > MAX_TEMP_C) {
-      value = 0; // Go to off state
+      if (value == 0) {
+        value = MAX_TEMP_C; // wrap to max
+      } else if (value <= MIN_BOOST_TEMP_C) {
+        value = 0; // go to off
+      } else {
+        value -= 10;
+      }
     }
   }
   setSettingValue(SettingsOptions::BoostTemp, value);
@@ -662,29 +681,45 @@ static void displayLockingMode(void) {
 
 static void displayProfilePhases(void) { Display::printNumber(getSettingValue(SettingsOptions::ProfilePhases), 1, FontStyle::LARGE); }
 
-static void setProfileTemp(const enum SettingsOptions option) {
+static void setProfileTemp(const enum SettingsOptions option, bool up) {
   // If in C, 5 deg, if in F 10 deg
   uint16_t temp = getSettingValue(option);
   if (getSettingValue(SettingsOptions::TemperatureInF)) {
-    temp += 10;
-    if (temp > MAX_TEMP_F) {
-      temp = MIN_TEMP_F;
+    if (up) {
+      temp += 10;
+      if (temp > MAX_TEMP_F) {
+        temp = MIN_TEMP_F;
+      }
+    } else {
+      if (temp <= MIN_TEMP_F) {
+        temp = MAX_TEMP_F;
+      } else {
+        temp -= 10;
+      }
     }
   } else {
-    temp += 5;
-    if (temp > MAX_TEMP_C) {
-      temp = MIN_TEMP_C;
+    if (up) {
+      temp += 5;
+      if (temp > MAX_TEMP_C) {
+        temp = MIN_TEMP_C;
+      }
+    } else {
+      if (temp <= MIN_TEMP_C) {
+        temp = MAX_TEMP_C;
+      } else {
+        temp -= 5;
+      }
     }
   }
   setSettingValue(option, temp);
 }
 
-static void setProfilePreheatTemp(void) { return setProfileTemp(SettingsOptions::ProfilePreheatTemp); }
-static void setProfilePhase1Temp(void) { return setProfileTemp(SettingsOptions::ProfilePhase1Temp); }
-static void setProfilePhase2Temp(void) { return setProfileTemp(SettingsOptions::ProfilePhase2Temp); }
-static void setProfilePhase3Temp(void) { return setProfileTemp(SettingsOptions::ProfilePhase3Temp); }
-static void setProfilePhase4Temp(void) { return setProfileTemp(SettingsOptions::ProfilePhase4Temp); }
-static void setProfilePhase5Temp(void) { return setProfileTemp(SettingsOptions::ProfilePhase5Temp); }
+static void setProfilePreheatTemp(bool up) { return setProfileTemp(SettingsOptions::ProfilePreheatTemp, up); }
+static void setProfilePhase1Temp(bool up) { return setProfileTemp(SettingsOptions::ProfilePhase1Temp, up); }
+static void setProfilePhase2Temp(bool up) { return setProfileTemp(SettingsOptions::ProfilePhase2Temp, up); }
+static void setProfilePhase3Temp(bool up) { return setProfileTemp(SettingsOptions::ProfilePhase3Temp, up); }
+static void setProfilePhase4Temp(bool up) { return setProfileTemp(SettingsOptions::ProfilePhase4Temp, up); }
+static void setProfilePhase5Temp(bool up) { return setProfileTemp(SettingsOptions::ProfilePhase5Temp, up); }
 
 static void displayProfilePreheatTemp(void) { Display::printNumber(getSettingValue(SettingsOptions::ProfilePreheatTemp), 3, FontStyle::LARGE); }
 static void displayProfilePhase1Temp(void) { Display::printNumber(getSettingValue(SettingsOptions::ProfilePhase1Temp), 3, FontStyle::LARGE); }
@@ -719,18 +754,34 @@ static bool showSleepOptions(void) { return getSettingValue(SettingsOptions::Sen
 
 #ifndef NO_SLEEP_MODE
 
-static void setSleepTemp(void) {
+static void setSleepTemp(bool up) {
   // If in C, 10 deg, if in F 20 deg
   uint16_t temp = getSettingValue(SettingsOptions::SleepTemp);
   if (getSettingValue(SettingsOptions::TemperatureInF)) {
-    temp += 20;
-    if (temp > 580) {
-      temp = 60;
+    if (up) {
+      temp += 20;
+      if (temp > 580) {
+        temp = 60;
+      }
+    } else {
+      if (temp <= 60) {
+        temp = 580;
+      } else {
+        temp -= 20;
+      }
     }
   } else {
-    temp += 10;
-    if (temp > 300) {
-      temp = 10;
+    if (up) {
+      temp += 10;
+      if (temp > 300) {
+        temp = 10;
+      }
+    } else {
+      if (temp <= 10) {
+        temp = 300;
+      } else {
+        temp -= 10;
+      }
     }
   }
   setSettingValue(SettingsOptions::SleepTemp, temp);
@@ -807,7 +858,7 @@ static void setTempF(const enum SettingsOptions option) {
   setSettingValue(option, Temp);
 }
 
-static void setTempF(void) {
+static void setTempF(bool up __unused) {
   nextSettingValue(SettingsOptions::TemperatureInF);
   setTempF(SettingsOptions::BoostTemp);
   setTempF(SettingsOptions::SolderingTemp);
@@ -828,8 +879,12 @@ static void displayTempF(void) { Display::printSymbolDeg(FontStyle::LARGE); }
 
 #ifndef NO_DISPLAY_ROTATE
 
-static void setDisplayRotation(void) {
-  nextSettingValue(SettingsOptions::OrientationMode);
+static void setDisplayRotation(bool up) {
+  if (up) {
+    nextSettingValue(SettingsOptions::OrientationMode);
+  } else {
+    prevSettingValue(SettingsOptions::OrientationMode);
+  }
   switch (getSettingValue(SettingsOptions::OrientationMode)) {
   case orientationMode_t::RIGHT:
     Display::setRotation(false);
@@ -943,12 +998,14 @@ static void displayPowerLimit(void) {
   }
 }
 
-static void setCalibrate(void) {
-  if (getSettingValue(SettingsOptions::CalibrateCJC) < 1) {
-    if (userConfirmation(translatedString(Tr->SettingsCalibrationWarning))) {
-      // User confirmed
-      // So we now set the tick
-      setSettingValue(SettingsOptions::CalibrateCJC, 1);
+static void setCalibrate(bool up) {
+  if (up) {
+    if (getSettingValue(SettingsOptions::CalibrateCJC) < 1) {
+      if (userConfirmation(translatedString(Tr->SettingsCalibrationWarning))) {
+        // User confirmed
+        // So we now set the tick
+        setSettingValue(SettingsOptions::CalibrateCJC, 1);
+      }
     }
   } else {
     setSettingValue(SettingsOptions::CalibrateCJC, 0);
@@ -957,7 +1014,7 @@ static void setCalibrate(void) {
 
 static void displayCalibrate(void) { Display::drawCheckbox(getSettingValue(SettingsOptions::CalibrateCJC)); }
 
-static void setCalibrateVIN(void) {
+static void setCalibrateVIN(bool up __unused) {
   // Jump to the voltage calibration subscreen
   Display::clearScreen();
 
@@ -1016,16 +1073,18 @@ static void displayPowerPulseWait(void) { Display::printNumber(getSettingValue(S
 
 static void displayPowerPulseDuration(void) { Display::printNumber(getSettingValue(SettingsOptions::KeepAwakePulseDuration), 1, FontStyle::LARGE); }
 
-static void setResetSettings(void) {
-  if (userConfirmation(translatedString(Tr->SettingsResetWarning))) {
-    resetSettings();
-    Display::clearScreen();
-    while (!warnUser(translatedString(Tr->ResetOKMessage), getButtonState())) {
-      Display::refresh();
-      vTaskDelay(TICKS_100MS);
+static void setResetSettings(bool up) {
+  if (up) {
+    if (userConfirmation(translatedString(Tr->SettingsResetWarning))) {
+      resetSettings();
       Display::clearScreen();
+      while (!warnUser(translatedString(Tr->ResetOKMessage), getButtonState())) {
+        Display::refresh();
+        vTaskDelay(TICKS_100MS);
+        Display::clearScreen();
+      }
+      reboot();
     }
-    reboot();
   }
 }
 
